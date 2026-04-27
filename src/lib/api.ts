@@ -558,7 +558,101 @@ Post-change order:
 - Never push unless explicitly asked.
 `,
 			},
-			{ path: "~/.claude/skills/", name: "skills/", type: "directory", content: JSON.stringify(["code-review/", "documentation/", "test-generator/", "architecture-blueprint/", "agent-governance/", "agentic-eval/", "react-doctor/", "refactor/"]), linkTo: "/skills" },
+			{ path: "~/.claude/skills/", name: "skills/", type: "directory", content: JSON.stringify(["react-doctor/", "premium-frontend-ui/", "archive/", "agent-governance/", "agentic-eval/"]), linkTo: "/skills" },
+			{
+				path: "~/.claude/skills/react-doctor/SKILL.md",
+				name: "SKILL.md",
+				type: "markdown",
+				content: `---
+name: react-doctor
+description: Diagnose and fix React codebase health issues. Use when reviewing React code, fixing performance problems, auditing security, or improving code quality.
+version: 1.0.0
+---
+
+# React Doctor
+
+Scans your React codebase for security, performance, correctness, and architecture issues. Outputs a 0-100 score with actionable diagnostics.
+
+## Usage
+
+\`\`\`bash
+npx -y react-doctor@latest . --verbose
+\`\`\`
+
+## Workflow
+
+1. Run the command above at the project root
+2. Read every diagnostic with file paths and line numbers
+3. Fix issues starting with errors (highest severity)
+4. Re-run to verify the score improved
+
+## Rules (47+)
+
+- **Security**: hardcoded secrets in client bundle, eval()
+- **State & Effects**: derived state in useEffect, missing cleanup, useState from props, cascading setState
+- **Architecture**: components inside components, giant components, inline render functions
+- **Performance**: layout property animations, transition-all, large blur values
+- **Correctness**: array index as key, conditional rendering bugs
+`,
+			},
+			{
+				path: "~/.claude/skills/premium-frontend-ui/SKILL.md",
+				name: "SKILL.md",
+				type: "markdown",
+				content: `---
+name: premium-frontend-ui
+description: 'A comprehensive guide for crafting immersive, high-performance web experiences with advanced motion, typography, and architectural craftsmanship.'
+---
+
+# Immersive Frontend UI Craftsmanship
+
+Your role when building premium frontend experiences goes beyond outputting functional HTML and CSS. You must architect **immersive digital environments**.
+
+## Visual Identity Options
+
+- **Editorial Brutalism**: High-contrast monochromatic palettes, oversized typography, sharp rectangular edges
+- **Organic Fluidity**: Soft gradients, deeply rounded corners, glassmorphism overlays, bouncy spring physics
+- **Cyber / Technical**: Dark mode dominance, glowing neon accents, monospaced typography
+- **Cinematic Pacing**: Full-viewport imagery, slow cross-fades, profound negative space
+
+## Motion Design
+
+- Use CSS \`@keyframes\` for repeating ambient animations
+- Use Framer Motion or GSAP for scroll-triggered orchestrations
+- Apply \`will-change\` judiciously to avoid paint thrashing
+- Stagger child element entrance by 50-80ms increments
+`,
+			},
+			{
+				path: "~/.claude/skills/archive/SKILL.md",
+				name: "SKILL.md",
+				type: "markdown",
+				content: `---
+name: archive
+description: "Archive session learnings, debugging solutions, and deployment logs to .archive/yyyy-mm-dd/ as indexed markdown with searchable tags."
+---
+
+# Archive Skill
+
+Capture, index, and reuse project knowledge across sessions.
+
+## When to Archive
+
+- After completing a significant task (deploy, migration, major feature)
+- After resolving a tricky debugging session
+- When the user says "archive this"
+- After any multi-step process with learnings worth preserving
+
+## When to Consult Archives
+
+- Before debugging infrastructure, deploy, or CI issues
+- Before repeating a process done in a past session
+- When encountering an error that may have been solved before
+
+**Search**: \`grep -ri "keyword" .archive/\`
+**Index**: \`.archive/MEMORY.md\`
+`,
+			},
 			{ path: "~/.claude/plugins/", name: "plugins/", type: "directory", content: JSON.stringify(["installed_plugins.json", "known_marketplaces.json", "blocklist.json", "marketplaces/", "cache/"]), linkTo: "/plugins" },
 			{ path: "~/.claude/commands/", name: "commands/", type: "directory", content: JSON.stringify([]) },
 			{ path: "~/.claude/hooks/", name: "hooks/", type: "directory", content: JSON.stringify([]) },

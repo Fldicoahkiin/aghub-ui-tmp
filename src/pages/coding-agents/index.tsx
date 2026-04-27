@@ -1,4 +1,9 @@
-import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/solid";
+import {
+	ArrowTopRightOnSquareIcon,
+	ChevronRightIcon,
+	FolderIcon,
+	FolderOpenIcon,
+} from "@heroicons/react/24/solid";
 import { Button, Card, Label, ListBox } from "@heroui/react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useEffect, useRef, useState } from "react";
@@ -6,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
 import { Tree } from "react-arborist";
 import type { NodeRendererProps } from "react-arborist";
-import { getIconForFile, getIconForFolder } from "vscode-icons-ts";
+import { getIconForFile } from "vscode-icons-ts";
 import { JsonEditor } from "../../components/json-editor";
 import { MarkdownEditor } from "../../components/markdown-editor";
 import { TomlEditor } from "../../components/toml-editor";
@@ -14,13 +19,14 @@ import { useAgentAvailability } from "../../hooks/use-agent-availability";
 import { useApi } from "../../hooks/use-api";
 import type { AgentConfigFile } from "../../lib/api";
 import { AgentIcon } from "../../lib/agent-icons";
+import { cn } from "../../lib/utils";
 import {
 	workspaceAgentFilesQueryOptions,
 	workspaceFileContentQueryOptions,
 } from "../../requests/workspace";
 
 /* ------------------------------------------------------------------ */
-/*  VSCode icons                                                       */
+/*  VSCode file icons                                                  */
 /* ------------------------------------------------------------------ */
 
 const ICON_BASE = "https://cdn.jsdelivr.net/npm/vscode-icons-ts@0.1.2/build/icons/";
@@ -28,19 +34,23 @@ const ICON_BASE = "https://cdn.jsdelivr.net/npm/vscode-icons-ts@0.1.2/build/icon
 function VscFileIcon({ name }: { name: string }) {
 	const icon = getIconForFile(name);
 	if (!icon) return <span className="inline-block size-4 shrink-0" />;
-	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0" />;
-}
-
-function VscFolderIcon({ name, isOpen }: { name: string; isOpen?: boolean }) {
-	const base = name.replace(/\/$/, "");
-	const icon = isOpen
-		? getIconForFolder(base).replace("default_folder", "default_folder_opened")
-		: getIconForFolder(base);
-	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0" />;
+	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0 opacity-70" />;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tree data conversion                                               */
+/*  Link target mapping                                                */
+/* ------------------------------------------------------------------ */
+
+const LINK_LABELS: Record<string, string> = {
+	"/skills": "skills",
+	"/plugins": "plugins",
+	"/mcp": "mcpServers",
+	"/sub-agents": "subAgents",
+	"/inference-providers": "inferenceProviders",
+};
+
+/* ------------------------------------------------------------------ */
+/*  Tree data                                                          */
 /* ------------------------------------------------------------------ */
 
 interface TreeNodeData {
@@ -52,43 +62,76 @@ interface TreeNodeData {
 	children?: TreeNodeData[];
 }
 
-function filesToTreeData(files: AgentConfigFile[]): TreeNodeData[] {
-	const dirs: TreeNodeData[] = [];
-	const leaves: TreeNodeData[] = [];
+function filesToTreeData(files: AgentConfigFile[], rootPath: string): TreeNodeData[] {
+	// Separate directories and files
+	const dirFiles = files.filter((f) => f.type === "directory");
+	const nonDirFiles = files.filter((f) => f.type !== "directory");
 
-	for (const file of files) {
-		if (file.type === "directory") {
-			let children: TreeNodeData[] = [];
-			try {
-				const entries: string[] = JSON.parse(file.content);
-				children = entries.map((entry) => ({
-					id: `${file.path}${entry}`,
+	// Build directory nodes with children from JSON content
+	const dirNodes: TreeNodeData[] = dirFiles.map((dir) => {
+		let childEntries: string[] = [];
+		try { childEntries = JSON.parse(dir.content); } catch { /* empty */ }
+
+		// For each child entry, check if there are actual files under it
+		const children: TreeNodeData[] = childEntries.map((entry) => {
+			const childPath = `${dir.path}${entry}`;
+			const isSubDir = entry.endsWith("/");
+
+			if (isSubDir) {
+				// Find files that live under this subdirectory
+				const subFiles = nonDirFiles
+					.filter((f) => f.path.startsWith(childPath))
+					.map((f) => ({
+						id: f.path,
+						name: f.name,
+						fileType: f.type as TreeNodeData["fileType"],
+						filePath: f.path,
+					}));
+
+				return {
+					id: childPath,
 					name: entry,
-					fileType: entry.endsWith("/") ? "directory" as const : "json" as const,
-					filePath: `${file.path}${entry}`,
-				}));
-			} catch { /* empty */ }
+					fileType: "directory" as const,
+					filePath: childPath,
+					children: subFiles.length > 0 ? subFiles : undefined,
+				};
+			}
 
-			dirs.push({
-				id: file.path,
-				name: file.name,
-				fileType: "directory",
-				filePath: file.path,
-				linkTo: file.linkTo,
-				children,
-			});
-		} else {
-			leaves.push({
-				id: file.path,
-				name: file.name,
-				fileType: file.type,
-				filePath: file.path,
-			});
-		}
-	}
+			return {
+				id: childPath,
+				name: entry,
+				fileType: "json" as const,
+				filePath: childPath,
+			};
+		});
 
-	// Flat — no root wrapper. Dirs first, then files.
-	return [...dirs, ...leaves];
+		return {
+			id: dir.path,
+			name: dir.name,
+			fileType: "directory" as const,
+			filePath: dir.path,
+			linkTo: dir.linkTo,
+			children,
+		};
+	});
+
+	// Top-level files (not under any directory)
+	const topLevelFiles: TreeNodeData[] = nonDirFiles
+		.filter((f) => !dirFiles.some((d) => f.path.startsWith(d.path)))
+		.map((f) => ({
+			id: f.path,
+			name: f.name,
+			fileType: f.type as TreeNodeData["fileType"],
+			filePath: f.path,
+		}));
+
+	return [{
+		id: "__root__",
+		name: rootPath,
+		fileType: "directory" as const,
+		filePath: rootPath,
+		children: [...dirNodes, ...topLevelFiles],
+	}];
 }
 
 /* ------------------------------------------------------------------ */
@@ -96,32 +139,63 @@ function filesToTreeData(files: AgentConfigFile[]): TreeNodeData[] {
 /* ------------------------------------------------------------------ */
 
 function FileTreeNode({ node, style }: NodeRendererProps<TreeNodeData>) {
+	const { t } = useTranslation();
+	const [, setLocation] = useLocation();
 	const isDir = node.data.fileType === "directory";
+	const isRoot = node.data.id === "__root__";
 	const isSelected = node.isSelected && !isDir;
+	const hasLink = !!node.data.linkTo;
 
 	return (
-		<div
-			style={{ ...style, cursor: "default" }}
-			className={`flex items-center gap-1.5 pr-3 text-[13px] leading-7 transition-colors ${
-				isSelected
-					? "bg-surface text-foreground"
-					: "text-muted hover:bg-surface-secondary/50 hover:text-foreground"
-			}`}
-			onClick={() => {
-				if (isDir) {
-					node.toggle();
-				} else {
-					node.select();
-					node.activate();
-				}
-			}}
-		>
-			{isDir ? (
-				<VscFolderIcon name={node.data.name} isOpen={node.isOpen} />
-			) : (
-				<VscFileIcon name={node.data.name} />
-			)}
-			<span className="truncate">{node.data.name}</span>
+		<div style={{ ...style, cursor: "default" }} className="px-1">
+			<div
+				className={cn(
+					"group flex items-center gap-1 rounded-md px-1.5 text-[13px] leading-7 transition-colors",
+					isRoot
+						? "font-mono text-xs font-medium text-accent"
+						: isSelected
+							? "bg-surface text-foreground"
+							: "text-muted hover:bg-surface-secondary/50 hover:text-foreground",
+				)}
+			>
+				{/* Chevron for directories */}
+				{isDir && !isRoot ? (
+					<button
+						type="button"
+						onClick={(e) => { e.stopPropagation(); node.toggle(); }}
+						className="flex size-4 shrink-0 items-center justify-center"
+					>
+						<ChevronRightIcon className={cn("size-3 text-muted transition-transform", node.isOpen && "rotate-90")} />
+					</button>
+				) : !isDir ? (
+					<span className="size-4 shrink-0" />
+				) : null}
+
+				{/* Name (+ file icon for non-dirs) — click to toggle dir or select file */}
+				<div
+					className="flex min-w-0 flex-1 items-center gap-1.5"
+					onClick={() => {
+						if (isRoot) return;
+						if (isDir) node.toggle();
+						else { node.select(); node.activate(); }
+					}}
+				>
+					{!isDir && <VscFileIcon name={node.data.name} />}
+					<span className="truncate">{isDir ? node.data.name.replace(/\/$/, "") : node.data.name}</span>
+				</div>
+
+				{/* Jump link for linked directories */}
+				{hasLink && !isRoot && (
+					<button
+						type="button"
+						onClick={(e) => { e.stopPropagation(); setLocation(node.data.linkTo!); }}
+						className="hidden shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-accent/60 transition-colors hover:bg-accent/10 hover:text-accent group-hover:inline-flex"
+						title={t(LINK_LABELS[node.data.linkTo!] ?? "inferenceProviders")}
+					>
+						<ArrowTopRightOnSquareIcon className="size-3" />
+					</button>
+				)}
+			</div>
 		</div>
 	);
 }
@@ -167,18 +241,16 @@ export default function CodingAgentsPage() {
 	const rootPath = files[0]?.path.split("/").slice(0, -1).join("/") ?? "";
 
 	const treeData = useMemo(
-		() => filesToTreeData(files),
-		[files],
+		() => filesToTreeData(files, rootPath),
+		[files, rootPath],
 	);
 
-	// Find the selected directory entry for its linkTo
 	const selectedDirEntry = selectedFile?.type === "directory" ? selectedFile : null;
 
 	return (
 		<div className="flex h-full">
 			{/* Left: Agent list + file tree */}
 			<div className="flex w-72 shrink-0 flex-col border-r border-border">
-				{/* Agent list */}
 				<div className="border-b border-border px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted">
 					{t("codingAgents")}
 				</div>
@@ -208,13 +280,8 @@ export default function CodingAgentsPage() {
 					))}
 				</ListBox>
 
-				{/* File tree (react-arborist) */}
+				{/* File tree */}
 				<div className="flex min-h-0 flex-1 flex-col border-t border-border overflow-hidden">
-					{/* Fixed root path header */}
-					<div className="flex items-center gap-1.5 px-3 py-2 text-xs">
-						<VscFolderIcon name={rootPath.split("/").pop() ?? ""} isOpen />
-						<span className="font-mono font-medium text-accent">{rootPath}</span>
-					</div>
 					<Tree
 						data={treeData}
 						openByDefault
@@ -243,18 +310,14 @@ export default function CodingAgentsPage() {
 						<Card className="flex h-full flex-col">
 							<Card.Header className="flex flex-row items-center justify-between">
 								<div className="flex min-w-0 items-center gap-2">
-									<VscFolderIcon name={selectedDirEntry.name} isOpen />
+									<FolderOpenIcon className="size-4 shrink-0 text-muted" />
 									<Card.Title className="truncate text-sm font-medium">{selectedDirEntry.name}</Card.Title>
 									<span className="shrink-0 text-xs text-muted">{rootPath}</span>
 								</div>
 								{selectedDirEntry.linkTo && (
 									<Button variant="ghost" size="sm" onPress={() => setLocation(selectedDirEntry.linkTo!)}>
 										<ArrowTopRightOnSquareIcon className="size-3.5" />
-										{selectedDirEntry.linkTo === "/skills" ? t("skills")
-											: selectedDirEntry.linkTo === "/plugins" ? t("plugins")
-											: selectedDirEntry.linkTo === "/mcp" ? t("mcpServers")
-											: selectedDirEntry.linkTo === "/sub-agents" ? t("subAgents")
-											: t("inferenceProviders")}
+										{t(LINK_LABELS[selectedDirEntry.linkTo] ?? "inferenceProviders")}
 									</Button>
 								)}
 							</Card.Header>
@@ -266,7 +329,7 @@ export default function CodingAgentsPage() {
 										<div className="space-y-px">
 											{children.map((child) => (
 												<div key={child} className="flex items-center gap-2 rounded-sm px-3 py-1.5 text-[13px] text-muted">
-													{child.endsWith("/") ? <VscFolderIcon name={child} /> : <VscFileIcon name={child} />}
+													{child.endsWith("/") ? <FolderIcon className="size-4 shrink-0 text-muted" /> : <VscFileIcon name={child} />}
 													<span className="truncate">{child}</span>
 												</div>
 											))}
