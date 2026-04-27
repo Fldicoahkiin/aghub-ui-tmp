@@ -52,7 +52,7 @@ interface TreeNodeData {
 	children?: TreeNodeData[];
 }
 
-function filesToTreeData(files: AgentConfigFile[], rootPath: string): TreeNodeData[] {
+function filesToTreeData(files: AgentConfigFile[]): TreeNodeData[] {
 	const dirs: TreeNodeData[] = [];
 	const leaves: TreeNodeData[] = [];
 
@@ -87,15 +87,8 @@ function filesToTreeData(files: AgentConfigFile[], rootPath: string): TreeNodeDa
 		}
 	}
 
-	return [
-		{
-			id: rootPath,
-			name: rootPath,
-			fileType: "directory",
-			filePath: rootPath,
-			children: [...dirs, ...leaves],
-		},
-	];
+	// Flat — no root wrapper. Dirs first, then files.
+	return [...dirs, ...leaves];
 }
 
 /* ------------------------------------------------------------------ */
@@ -108,11 +101,11 @@ function FileTreeNode({ node, style }: NodeRendererProps<TreeNodeData>) {
 
 	return (
 		<div
-			style={style}
-			className={`flex cursor-pointer items-center gap-1.5 border-l-2 pr-3 text-[13px] leading-7 transition-colors ${
+			style={{ ...style, cursor: "default" }}
+			className={`flex items-center gap-1.5 pr-3 text-[13px] leading-7 transition-colors ${
 				isSelected
-					? "border-l-accent bg-surface text-foreground"
-					: "border-l-transparent text-muted hover:bg-surface-secondary/50 hover:text-foreground"
+					? "bg-surface text-foreground"
+					: "text-muted hover:bg-surface-secondary/50 hover:text-foreground"
 			}`}
 			onClick={() => {
 				if (isDir) {
@@ -174,8 +167,8 @@ export default function CodingAgentsPage() {
 	const rootPath = files[0]?.path.split("/").slice(0, -1).join("/") ?? "";
 
 	const treeData = useMemo(
-		() => filesToTreeData(files, rootPath),
-		[files, rootPath],
+		() => filesToTreeData(files),
+		[files],
 	);
 
 	// Find the selected directory entry for its linkTo
@@ -217,6 +210,11 @@ export default function CodingAgentsPage() {
 
 				{/* File tree (react-arborist) */}
 				<div className="flex min-h-0 flex-1 flex-col border-t border-border overflow-hidden">
+					{/* Fixed root path header */}
+					<div className="flex items-center gap-1.5 px-3 py-2 text-xs">
+						<VscFolderIcon name={rootPath.split("/").pop() ?? ""} isOpen />
+						<span className="font-mono font-medium text-accent">{rootPath}</span>
+					</div>
 					<Tree
 						data={treeData}
 						openByDefault
