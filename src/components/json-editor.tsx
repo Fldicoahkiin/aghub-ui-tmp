@@ -283,11 +283,16 @@ function FormattedView({ content, onNavigate }: { content: string; onNavigate?: 
 
 export function JsonEditor({ content, onNavigateToProvider }: { content: string; onNavigateToProvider?: () => void }) {
 	const [mode, setMode] = useState<"formatted" | "raw">("formatted");
-	const [rawContent, setRawContent] = useState(content);
+	const [currentContent, setCurrentContent] = useState(content);
 	const monaco = useMonaco();
 	useEffect(() => {
 		if (monaco) monaco.editor.defineTheme("aghub-dark", AGHUB_DARK_THEME);
 	}, [monaco]);
+
+	// Sync when parent content changes (e.g. file switch)
+	useEffect(() => {
+		setCurrentContent(content);
+	}, [content]);
 
 	const handleNavigate = (href: string) => {
 		if (onNavigateToProvider && href === "/inference-providers") {
@@ -297,21 +302,30 @@ export function JsonEditor({ content, onNavigateToProvider }: { content: string;
 		}
 	};
 
+	// Format JSON when switching from raw → formatted
+	const handleSwitchToFormatted = () => {
+		try {
+			const parsed = JSON.parse(currentContent);
+			setCurrentContent(JSON.stringify(parsed, null, 2));
+		} catch { /* keep as-is if invalid */ }
+		setMode("formatted");
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			<div className="mb-2 flex gap-1">
-				<Button size="sm" variant={mode === "formatted" ? "secondary" : "ghost"} onPress={() => setMode("formatted")}>Formatted</Button>
+				<Button size="sm" variant={mode === "formatted" ? "secondary" : "ghost"} onPress={handleSwitchToFormatted}>Formatted</Button>
 				<Button size="sm" variant={mode === "raw" ? "secondary" : "ghost"} onPress={() => setMode("raw")}>Raw</Button>
 			</div>
 			{mode === "raw" ? (
 				<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
-					<Editor height="100%" defaultLanguage="json" value={rawContent} onChange={(v) => setRawContent(v ?? "")} theme="aghub-dark"
+					<Editor height="100%" defaultLanguage="json" value={currentContent} onChange={(v) => setCurrentContent(v ?? "")} theme="aghub-dark"
 						options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", scrollBeyondLastLine: false, wordWrap: "on", tabSize: 2, formatOnPaste: true, automaticLayout: true, padding: { top: 12 } }}
 					/>
 				</div>
 			) : (
 				<div className="min-h-0 flex-1 overflow-y-auto">
-					<FormattedView content={content} onNavigate={handleNavigate} />
+					<FormattedView content={currentContent} onNavigate={handleNavigate} />
 				</div>
 			)}
 		</div>

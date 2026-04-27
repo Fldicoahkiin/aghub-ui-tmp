@@ -190,7 +190,11 @@ export default function CodingAgentsPage() {
 								{selectedFile.linkTo && (
 									<Button variant="ghost" size="sm" onPress={() => setLocation(selectedFile.linkTo!)}>
 										<ArrowTopRightOnSquareIcon className="size-3.5" />
-										Open in aghub
+										{selectedFile.linkTo === "/skills" ? t("skills")
+											: selectedFile.linkTo === "/plugins" ? t("plugins")
+											: selectedFile.linkTo === "/mcp" ? t("mcpServers")
+											: selectedFile.linkTo === "/sub-agents" ? t("subAgents")
+											: t("inferenceProviders")}
 									</Button>
 								)}
 							</Card.Header>
