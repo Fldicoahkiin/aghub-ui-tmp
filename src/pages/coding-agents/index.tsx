@@ -20,10 +20,17 @@ import {
 function hasProviderFields(content: string): boolean {
 	try {
 		const parsed = JSON.parse(content);
-		return ["apiKey", "baseUrl", "model"].some((key) => key in parsed);
+		return ["apiKey", "baseUrl", "model", "primaryApiKey"].some((key) => key in parsed);
 	} catch {
 		return false;
 	}
+}
+
+function getPathHint(filePath: string): { label: string; href: string } | null {
+	if (filePath.includes("/skills/")) return { label: "在 Skills 中管理", href: "/skills" };
+	if (filePath.includes("/plugins/")) return { label: "在 Plugins 中管理", href: "/plugins" };
+	if (filePath.includes("/mcp") || filePath.includes("mcpServers")) return { label: "在 MCP Server 中管理", href: "/mcp" };
+	return null;
 }
 
 export default function CodingAgentsPage() {
@@ -55,11 +62,13 @@ export default function CodingAgentsPage() {
 		selectedFile?.type === "json" &&
 		fileContent !== null &&
 		hasProviderFields(fileContent);
+	const pathHint = selectedFile ? getPathHint(selectedFile.path) : null;
 
 	return (
 		<div className="flex h-full">
-			{/* Left: Agent list */}
-			<div className="flex w-56 shrink-0 flex-col border-r border-border">
+			{/* Left: Agent list + config files */}
+			<div className="flex w-72 shrink-0 flex-col border-r border-border">
+				{/* Agent list */}
 				<div className="border-b border-border px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted">
 					{t("codingAgents")}
 				</div>
@@ -75,7 +84,7 @@ export default function CodingAgentsPage() {
 						setSelectedAgentId(id);
 						setSelectedFilePath(null);
 					}}
-					className="flex-1 overflow-y-auto p-2"
+					className="p-2"
 				>
 					{usableAgents.map((agent) => (
 						<ListBox.Item
@@ -87,55 +96,45 @@ export default function CodingAgentsPage() {
 							<div className="flex min-w-0 items-center gap-2">
 								<AgentIcon id={agent.id} name={agent.display_name} size="xs" variant="ghost" />
 								<div className="min-w-0 flex-1">
-									<Label className="block truncate">
-										{agent.display_name}
-									</Label>
+									<Label className="block truncate">{agent.display_name}</Label>
 								</div>
 							</div>
 						</ListBox.Item>
 					))}
 				</ListBox>
-			</div>
 
-			{/* Middle: File list */}
-			<div className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-secondary/30">
-				<div className="border-b border-border px-3 py-2.5 text-xs font-medium text-muted">
-					{selectedAgentId
-						? files[0]?.path.split("/").slice(0, -1).join("/") ?? ""
-						: ""}
+				{/* Config files */}
+				<div className="flex min-h-0 flex-1 flex-col border-t border-border">
+					<div className="bg-surface-secondary/50 px-3 py-2 text-xs font-medium text-muted">
+						{files[0]?.path.split("/").slice(0, -1).join("/") ?? ""}
+					</div>
+					<ListBox
+						aria-label={t("configFiles")}
+						selectionMode="single"
+						selectionBehavior="replace"
+						selectedKeys={selectedFilePath ? new Set([selectedFilePath]) : new Set<string>()}
+						onSelectionChange={(keys) => {
+							if (keys === "all") return;
+							const path = [...keys][0] as string | undefined;
+							if (path) setSelectedFilePath(path);
+						}}
+						className="flex-1 overflow-y-auto p-2"
+					>
+						{files.map((file) => (
+							<ListBox.Item
+								key={file.path}
+								id={file.path}
+								textValue={file.name}
+								className="data-selected:bg-surface"
+							>
+								<div className="flex min-w-0 items-center gap-2">
+									<DocumentTextIcon className="size-4 shrink-0 text-muted" />
+									<Label className="block truncate">{file.name}</Label>
+								</div>
+							</ListBox.Item>
+						))}
+					</ListBox>
 				</div>
-				<ListBox
-					aria-label={t("configFiles")}
-					selectionMode="single"
-					selectionBehavior="replace"
-					selectedKeys={
-						selectedFilePath
-							? new Set([selectedFilePath])
-							: new Set<string>()
-					}
-					onSelectionChange={(keys) => {
-						if (keys === "all") return;
-						const path = [...keys][0] as string | undefined;
-						if (path) setSelectedFilePath(path);
-					}}
-					className="flex-1 overflow-y-auto p-2"
-				>
-					{files.map((file) => (
-						<ListBox.Item
-							key={file.path}
-							id={file.path}
-							textValue={file.name}
-							className="data-selected:bg-surface"
-						>
-							<div className="flex min-w-0 items-center gap-2">
-								<DocumentTextIcon className="size-4 shrink-0 text-muted" />
-								<Label className="block truncate">
-									{file.name}
-								</Label>
-							</div>
-						</ListBox.Item>
-					))}
-				</ListBox>
 			</div>
 
 			{/* Right: Editor */}
@@ -148,29 +147,29 @@ export default function CodingAgentsPage() {
 									{selectedFile.path}
 								</Card.Title>
 								<div className="flex shrink-0 gap-2">
-									<Button variant="ghost" size="sm">
-										{t("cancel")}
-									</Button>
-									<Button variant="primary" size="sm">
-										{t("save")}
-									</Button>
+									<Button variant="tertiary" size="sm">{t("cancel")}</Button>
+									<Button size="sm">{t("save")}</Button>
 								</div>
 							</Card.Header>
 
 							<Card.Content className="flex min-h-0 flex-1 flex-col">
-								{/* Provider config banner */}
+								{/* Provider config hint */}
 								{showProviderBanner && (
-									<div className="mb-4 flex items-center justify-between rounded-md bg-surface-secondary px-3 py-2 text-sm text-muted">
+									<div className="mb-3 flex items-center justify-between rounded-md bg-surface-secondary px-3 py-2 text-xs text-muted">
 										<span>{t("providerConfigBanner")}</span>
-										<Button
-											variant="ghost"
-											size="sm"
-											onPress={() =>
-												setLocation("/inference-providers")
-											}
-										>
-											<ArrowTopRightOnSquareIcon className="size-4" />
+										<Button variant="ghost" size="sm" onPress={() => setLocation("/inference-providers")}>
+											<ArrowTopRightOnSquareIcon className="size-3.5" />
 											{t("goToInferenceProviders")}
+										</Button>
+									</div>
+								)}
+
+								{/* Path-aware hint (skills/plugins/mcp) */}
+								{pathHint && !showProviderBanner && (
+									<div className="mb-3 flex items-center justify-between rounded-md bg-surface-secondary px-3 py-2 text-xs text-muted">
+										<span>{pathHint.label}</span>
+										<Button variant="ghost" size="sm" onPress={() => setLocation(pathHint.href)}>
+											<ArrowTopRightOnSquareIcon className="size-3.5" />
 										</Button>
 									</div>
 								)}
@@ -188,9 +187,7 @@ export default function CodingAgentsPage() {
 					</div>
 				) : (
 					<div className="flex h-full items-center justify-center text-sm text-muted">
-						{selectedAgentId
-							? t("selectFile")
-							: t("selectAgent")}
+						{selectedAgentId ? t("selectFile") : t("selectAgent")}
 					</div>
 				)}
 			</div>

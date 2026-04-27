@@ -131,8 +131,8 @@ export default {
 	restartToUpdate: "重启更新",
 	restartNow: "立即重启",
 	// Inference Providers
-	inferenceProviders: "Inference Provider",
-	codingAgents: "Coding Agent",
+	inferenceProviders: "模型服务",
+	codingAgents: "编程 Agent",
 	providers: "Provider",
 	searchProviders: "搜索 Provider...",
 	addProvider: "添加 Provider",

@@ -417,18 +417,25 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 		rootPath: "~/.claude",
 		files: [
 			{
-				path: "~/.claude/config.json",
-				name: "config.json",
+				path: "~/.claude/settings.json",
+				name: "settings.json",
 				type: "json",
 				content: JSON.stringify(
 					{
-						apiKey: "sk-ant-••••••••••••••••••••••••••••••••••••••",
-						baseUrl: "https://api.anthropic.com",
-						model: "claude-sonnet-4-5",
-						maxTokens: 8192,
+						model: "opus[1m]",
+						language: "中文",
+						autoUpdatesChannel: "stable",
 						permissions: {
-							allow: ["Bash", "Read", "Write", "Edit"],
-							deny: [],
+							allow: ["Bash(gh pr:*)", "Bash(git add:*)"],
+							defaultMode: "plan",
+						},
+						hooks: {
+							PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "notify-bridge" }] }],
+						},
+						enabledPlugins: {
+							"context7@claude-plugins-official": true,
+							"pr-review-toolkit@claude-plugins-official": true,
+							"typescript-lsp@claude-plugins-official": true,
 						},
 					},
 					null,
@@ -436,14 +443,30 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 				),
 			},
 			{
-				path: "~/.claude/settings.json",
-				name: "settings.json",
+				path: "~/.claude/settings.local.json",
+				name: "settings.local.json",
 				type: "json",
 				content: JSON.stringify(
 					{
-						theme: "dark",
-						autoUpdate: true,
-						verbose: false,
+						permissions: {
+							allow: [
+								"Bash(zsh -c 'which node; node --version')",
+								"Bash(ls:*)",
+								"WebFetch(domain:github.com)",
+							],
+						},
+					},
+					null,
+					2,
+				),
+			},
+			{
+				path: "~/.claude/config.json",
+				name: "config.json",
+				type: "json",
+				content: JSON.stringify(
+					{
+						primaryApiKey: "any",
 					},
 					null,
 					2,
@@ -454,7 +477,7 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 				name: "CLAUDE.md",
 				type: "markdown",
 				content:
-					"# CLAUDE.md\n\nThis is the global instruction file for Claude Code.\n\n## Rules\n\n- Always write clean, well-documented code.\n- Prefer TypeScript over JavaScript.\n- Run tests before committing.\n",
+					"# Global Rules\n\n## Language\n\n- Respond in Chinese throughout.\n- Keep proper nouns in English: API, CLI, JSON, shell, prompt, tool, etc.\n\n## Safety\n\n- Never use `rm` in any form.\n- Never read credential dirs: `~/.ssh/`, `~/.aws/`, `~/.gnupg/`.\n\n## Code Consistency\n\n- No simplification of features without explicit approval.\n- Modify in-place. Never create renamed \"new version\" files.\n- Domain-first naming. Preserve the project's established vocabulary.\n",
 			},
 		],
 	},
