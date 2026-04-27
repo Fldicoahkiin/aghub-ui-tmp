@@ -14,10 +14,10 @@ import { AGHUB_DARK_THEME } from "./monaco-theme";
 /*  Provider-related field detection                                   */
 /* ------------------------------------------------------------------ */
 
-const PROVIDER_FIELDS = new Set(["model", "apikey", "baseurl", "api_key", "base_url", "primaryapikey", "apibaseurl", "api_base_url"]);
+const PROVIDER_FIELDS = new Set(["model", "baseUrl", "base_url", "apiBaseUrl", "api_base_url"]);
 
 function isProviderField(label: string): boolean {
-	return PROVIDER_FIELDS.has(label.toLowerCase());
+	return PROVIDER_FIELDS.has(label);
 }
 
 /* ------------------------------------------------------------------ */
@@ -115,10 +115,11 @@ function FormattedView({ content, onNavigateToProvider }: { content: string; onN
 					<div
 						key={node.key}
 						className={cn(
-							"group flex items-center gap-1 rounded-sm px-2 py-1 text-[13px] transition-colors",
+							"group flex items-center gap-1 rounded-sm py-1 pr-2 text-[13px] transition-colors",
 							isGroup ? "hover:bg-surface-secondary/80" : "hover:bg-surface-secondary/50",
+							providerRelated ? "border-l-2 border-l-accent/40 pl-1.5" : "border-l-2 border-l-transparent pl-1.5",
 						)}
-						style={{ paddingLeft: `${8 + node.depth * 16}px` }}
+						style={{ paddingLeft: `${6 + node.depth * 16}px` }}
 					>
 						{isGroup ? (
 							<button type="button" onClick={() => toggleCollapse(node.key)} className="flex size-4 shrink-0 items-center justify-center text-muted">
@@ -169,15 +170,15 @@ function FormattedView({ content, onNavigateToProvider }: { content: string; onN
 										{isShown ? <EyeSlashIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
 									</button>
 								)}
-								{/* Inline provider link — only visible on hover */}
+								{/* Inline provider link — always visible */}
 								{providerRelated && onNavigateToProvider && (
 									<button
 										type="button"
 										onClick={onNavigateToProvider}
-										className="ml-1 hidden shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-accent/70 transition-colors hover:bg-accent/10 hover:text-accent group-hover:inline-flex"
+										className="ml-1 inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-accent/60 transition-colors hover:bg-accent/10 hover:text-accent"
 									>
-										<ArrowTopRightOnSquareIcon className="size-3" />
 										Provider
+										<ArrowTopRightOnSquareIcon className="size-2.5" />
 									</button>
 								)}
 							</>

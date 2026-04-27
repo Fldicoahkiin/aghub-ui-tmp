@@ -558,12 +558,12 @@ Post-change order:
 - Never push unless explicitly asked.
 `,
 			},
-			{ path: "~/.claude/skills/", name: "skills/", type: "directory", content: "", linkTo: "/skills" },
-			{ path: "~/.claude/plugins/", name: "plugins/", type: "directory", content: "", linkTo: "/plugins" },
-			{ path: "~/.claude/commands/", name: "commands/", type: "directory", content: "" },
-			{ path: "~/.claude/hooks/", name: "hooks/", type: "directory", content: "" },
-			{ path: "~/.claude/agents/", name: "agents/", type: "directory", content: "" },
-			{ path: "~/.claude/tasks/", name: "tasks/", type: "directory", content: "" },
+			{ path: "~/.claude/skills/", name: "skills/", type: "directory", content: JSON.stringify(["code-review/", "documentation/", "test-generator/", "architecture-blueprint/", "agent-governance/", "agentic-eval/", "react-doctor/", "refactor/"]), linkTo: "/skills" },
+			{ path: "~/.claude/plugins/", name: "plugins/", type: "directory", content: JSON.stringify(["installed_plugins.json", "known_marketplaces.json", "blocklist.json", "marketplaces/", "cache/"]), linkTo: "/plugins" },
+			{ path: "~/.claude/commands/", name: "commands/", type: "directory", content: JSON.stringify([]) },
+			{ path: "~/.claude/hooks/", name: "hooks/", type: "directory", content: JSON.stringify([]) },
+			{ path: "~/.claude/agents/", name: "agents/", type: "directory", content: JSON.stringify([]) },
+			{ path: "~/.claude/tasks/", name: "tasks/", type: "directory", content: JSON.stringify(["current-session.json"]) },
 		],
 	},
 	opencode: {
@@ -646,8 +646,8 @@ Post-change order:
 - 敏感信息使用环境变量或 secret manager
 `,
 			},
-			{ path: "~/.config/opencode/skills/", name: "skills/", type: "directory", content: "", linkTo: "/skills" },
-			{ path: "~/.config/opencode/plugins/", name: "plugins/", type: "directory", content: "", linkTo: "/plugins" },
+			{ path: "~/.config/opencode/skills/", name: "skills/", type: "directory", content: JSON.stringify(["teach-impeccable/", "test-skill-opencode/"]), linkTo: "/skills" },
+			{ path: "~/.config/opencode/plugins/", name: "plugins/", type: "directory", content: JSON.stringify(["vibe-island.js"]), linkTo: "/plugins" },
 		],
 	},
 	codex: {
@@ -739,11 +739,11 @@ approval_mode = "approve"
 3. Verify in browser after frontend changes.
 `,
 			},
-			{ path: "~/.codex/skills/", name: "skills/", type: "directory", content: "", linkTo: "/skills" },
-			{ path: "~/.codex/plugins/", name: "plugins/", type: "directory", content: "", linkTo: "/plugins" },
-			{ path: "~/.codex/agents/", name: "agents/", type: "directory", content: "" },
-			{ path: "~/.codex/rules/", name: "rules/", type: "directory", content: "" },
-			{ path: "~/.codex/memories/", name: "memories/", type: "directory", content: "" },
+			{ path: "~/.codex/skills/", name: "skills/", type: "directory", content: JSON.stringify(["chatgpt-apps/", "cloudflare-deploy/", "codex-primary-runtime/", "doc/", "figma-implement-design/"]), linkTo: "/skills" },
+			{ path: "~/.codex/plugins/", name: "plugins/", type: "directory", content: JSON.stringify(["computer-use/"]), linkTo: "/plugins" },
+			{ path: "~/.codex/agents/", name: "agents/", type: "directory", content: JSON.stringify(["233.toml"]) },
+			{ path: "~/.codex/rules/", name: "rules/", type: "directory", content: JSON.stringify(["default.rules"]) },
+			{ path: "~/.codex/memories/", name: "memories/", type: "directory", content: JSON.stringify(["session-context.json"]) },
 		],
 	},
 	openclaw: {
@@ -836,9 +836,9 @@ Agent 的记忆存储在 \`~/.openclaw/memory/\` 目录下，按 Agent ID 分类
 - 所有外部 API 调用需设置 timeout
 `,
 			},
-			{ path: "~/.openclaw/agents/", name: "agents/", type: "directory", content: "" },
-			{ path: "~/.openclaw/memory/", name: "memory/", type: "directory", content: "" },
-			{ path: "~/.openclaw/browser/", name: "browser/", type: "directory", content: "" },
+			{ path: "~/.openclaw/agents/", name: "agents/", type: "directory", content: JSON.stringify(["main/"]) },
+			{ path: "~/.openclaw/memory/", name: "memory/", type: "directory", content: JSON.stringify(["main.sqlite"]) },
+			{ path: "~/.openclaw/browser/", name: "browser/", type: "directory", content: JSON.stringify([]) },
 		],
 	},
 };

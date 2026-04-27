@@ -133,7 +133,26 @@ export default function CodingAgentsPage() {
 					{/* File entries */}
 					{treeOpen && (
 						<div className="flex-1 overflow-y-auto">
-							{/* Regular files first */}
+							{/* Directories first */}
+							{files.filter((f) => f.type === "directory").map((dir) => {
+								const isSelected = dir.path === selectedFilePath;
+								return (
+									<button
+										key={dir.path}
+										onClick={() => setSelectedFilePath(dir.path)}
+										className={cn(
+											"flex w-full items-center gap-2 border-l-2 py-1 pl-7 pr-3 text-left text-[13px] transition-colors",
+											isSelected
+												? "border-l-accent bg-surface text-foreground"
+												: "border-l-transparent text-muted hover:bg-surface-secondary/50 hover:text-foreground",
+										)}
+									>
+										<VscFolderIcon name={dir.name} />
+										<span className="truncate">{dir.name}</span>
+									</button>
+								);
+							})}
+							{/* Then files */}
 							{files.filter((f) => f.type !== "directory").map((file) => {
 								const isSelected = file.path === selectedFilePath;
 								return (
@@ -152,39 +171,58 @@ export default function CodingAgentsPage() {
 									</button>
 								);
 							})}
-							{/* Directories */}
-							{files.filter((f) => f.type === "directory").map((dir) => (
-								<button
-									key={dir.path}
-									onClick={() => dir.linkTo ? setLocation(dir.linkTo) : undefined}
-									className={cn(
-										"flex w-full items-center gap-2 border-l-2 border-l-transparent py-1 pl-7 pr-3 text-left text-[13px] transition-colors",
-										dir.linkTo
-											? "text-muted hover:bg-surface-secondary/50 hover:text-foreground"
-											: "text-muted/60",
-									)}
-								>
-									<VscFolderIcon name={dir.name} />
-									<span className="truncate">{dir.name}</span>
-									{dir.linkTo && <ArrowTopRightOnSquareIcon className="ml-auto size-3 opacity-40" />}
-								</button>
-							))}
 						</div>
 					)}
 				</div>
 			</div>
 
-			{/* Right: Editor */}
+			{/* Right: Editor or directory preview */}
 			<div className="flex flex-1 flex-col overflow-hidden">
-				{selectedFile && fileContent !== null ? (
+				{selectedFile?.type === "directory" ? (
+					<div className="flex h-full flex-col p-4">
+						<Card className="flex h-full flex-col">
+							<Card.Header className="flex flex-row items-center justify-between">
+								<div className="flex min-w-0 items-center gap-2">
+									<VscFolderIcon name={selectedFile.name} />
+									<Card.Title className="truncate text-sm font-medium">{selectedFile.name}</Card.Title>
+									<span className="shrink-0 text-xs text-muted">{rootPath}</span>
+								</div>
+								{selectedFile.linkTo && (
+									<Button variant="ghost" size="sm" onPress={() => setLocation(selectedFile.linkTo!)}>
+										<ArrowTopRightOnSquareIcon className="size-3.5" />
+										Open in aghub
+									</Button>
+								)}
+							</Card.Header>
+							<Card.Content className="flex-1 overflow-y-auto">
+								{(() => {
+									let children: string[] = [];
+									try { children = JSON.parse(selectedFile.content); } catch { /* empty */ }
+									return children.length > 0 ? (
+										<div className="space-y-px">
+											{children.map((child) => (
+												<div key={child} className="flex items-center gap-2 rounded-sm px-3 py-1.5 text-[13px] text-muted">
+													{child.endsWith("/") ? <VscFolderIcon name={child} /> : <VscFileIcon name={child} />}
+													<span className="truncate">{child}</span>
+												</div>
+											))}
+										</div>
+									) : (
+										<div className="flex h-full items-center justify-center">
+											<p className="text-sm text-muted">Empty directory</p>
+										</div>
+									);
+								})()}
+							</Card.Content>
+						</Card>
+					</div>
+				) : selectedFile && fileContent !== null ? (
 					<div className="flex h-full flex-col p-4">
 						<Card className="flex h-full flex-col">
 							<Card.Header className="flex flex-row items-center justify-between">
 								<div className="flex min-w-0 items-center gap-2">
 									<VscFileIcon name={selectedFile.name} />
-									<Card.Title className="truncate text-sm font-medium">
-										{selectedFile.name}
-									</Card.Title>
+									<Card.Title className="truncate text-sm font-medium">{selectedFile.name}</Card.Title>
 									<span className="shrink-0 text-xs text-muted">{rootPath}</span>
 								</div>
 								{isDirty && (
@@ -194,7 +232,6 @@ export default function CodingAgentsPage() {
 									</div>
 								)}
 							</Card.Header>
-
 							<Card.Content className="flex min-h-0 flex-1 flex-col">
 								<div className="min-h-0 flex-1">
 									{selectedFile.type === "json" ? (
