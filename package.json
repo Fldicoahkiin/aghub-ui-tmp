@@ -13,6 +13,7 @@
 	"dependencies": {
 		"@heroicons/react": "^2.2.0",
 		"@heroui/react": "^3.0.1",
+		"@heroui/styles": "^3.0.3",
 		"@tanstack/react-query": "^5.94.5",
 		"clsx": "^2.1.1",
 		"driver.js": "^1.4.0",
@@ -23,6 +24,7 @@
 		"nuqs": "^2.8.9",
 		"pathe": "^2.0.3",
 		"react": "^19.1.0",
+		"react-aria-components": "^1.17.0",
 		"react-dom": "^19.1.0",
 		"react-grab": "^0.1.32",
 		"react-hook-form": "^7.72.0",
