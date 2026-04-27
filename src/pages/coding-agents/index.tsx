@@ -41,15 +41,6 @@ function VscFolderIcon({ name }: { name: string }) {
 /*  Provider fields detection                                          */
 /* ------------------------------------------------------------------ */
 
-function hasProviderFields(content: string): boolean {
-	try {
-		const parsed = JSON.parse(content);
-		return ["apiKey", "baseUrl", "model", "primaryApiKey"].some((key) => key in parsed);
-	} catch {
-		return false;
-	}
-}
-
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
@@ -90,11 +81,6 @@ export default function CodingAgentsPage() {
 	}, [selectedFilePath]);
 
 	const selectedFile = files.find((f) => f.path === selectedFilePath) ?? null;
-	const showProviderBanner =
-		selectedFile?.type === "json" &&
-		fileContent !== null &&
-		hasProviderFields(fileContent);
-
 	const rootPath = files[0]?.path.split("/").slice(0, -1).join("/") ?? "";
 
 	return (
@@ -210,19 +196,9 @@ export default function CodingAgentsPage() {
 							</Card.Header>
 
 							<Card.Content className="flex min-h-0 flex-1 flex-col">
-								{showProviderBanner && (
-									<div className="mb-3 flex items-center justify-between rounded-md border border-border bg-surface-secondary/50 px-3 py-2 text-xs text-muted">
-										<span>{t("providerConfigBanner")}</span>
-										<Button variant="ghost" size="sm" onPress={() => setLocation("/inference-providers")}>
-											<ArrowTopRightOnSquareIcon className="size-3.5" />
-											{t("goToInferenceProviders")}
-										</Button>
-									</div>
-								)}
-
 								<div className="min-h-0 flex-1">
 									{selectedFile.type === "json" ? (
-										<JsonEditor content={fileContent} />
+										<JsonEditor content={fileContent} onNavigateToProvider={() => setLocation("/inference-providers")} />
 									) : selectedFile.type === "toml" ? (
 										<TomlEditor content={fileContent} />
 									) : (

@@ -1,4 +1,5 @@
 import {
+	ArrowTopRightOnSquareIcon,
 	ChevronRightIcon,
 	EyeIcon,
 	EyeSlashIcon,
@@ -8,6 +9,16 @@ import Editor, { useMonaco } from "@monaco-editor/react";
 import { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
 import { AGHUB_DARK_THEME } from "./monaco-theme";
+
+/* ------------------------------------------------------------------ */
+/*  Provider-related field detection                                   */
+/* ------------------------------------------------------------------ */
+
+const PROVIDER_FIELDS = new Set(["model", "apikey", "baseurl", "api_key", "base_url", "primaryapikey", "apibaseurl", "api_base_url"]);
+
+function isProviderField(label: string): boolean {
+	return PROVIDER_FIELDS.has(label.toLowerCase());
+}
 
 /* ------------------------------------------------------------------ */
 /*  Tree builder                                                       */
@@ -64,7 +75,7 @@ function maskString(str: string): string {
 /*  Formatted tree view                                                */
 /* ------------------------------------------------------------------ */
 
-function FormattedView({ content }: { content: string }) {
+function FormattedView({ content, onNavigateToProvider }: { content: string; onNavigateToProvider?: () => void }) {
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
 	const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -98,12 +109,13 @@ function FormattedView({ content }: { content: string }) {
 				const secret = node.type === "value" && isSecret(node.label);
 				const isShown = showSecret[node.key] ?? false;
 				const isEditing = editingKey === node.key;
+				const providerRelated = node.type === "value" && isProviderField(node.label);
 
 				return (
 					<div
 						key={node.key}
 						className={cn(
-							"flex items-center gap-1 rounded-sm px-2 py-1 text-[13px] transition-colors",
+							"group flex items-center gap-1 rounded-sm px-2 py-1 text-[13px] transition-colors",
 							isGroup ? "hover:bg-surface-secondary/80" : "hover:bg-surface-secondary/50",
 						)}
 						style={{ paddingLeft: `${8 + node.depth * 16}px` }}
@@ -126,12 +138,9 @@ function FormattedView({ content }: { content: string }) {
 								{typeof node.value === "boolean" ? (
 									<button
 										type="button"
-										onClick={() => {/* toggle would update state */}}
 										className={cn(
 											"rounded-full px-2 py-0.5 font-mono text-xs font-medium transition-colors",
-											node.value
-												? "bg-accent/15 text-accent"
-												: "bg-surface-secondary text-muted",
+											node.value ? "bg-accent/15 text-accent" : "bg-surface-secondary text-muted",
 										)}
 									>
 										{String(node.value)}
@@ -160,6 +169,17 @@ function FormattedView({ content }: { content: string }) {
 										{isShown ? <EyeSlashIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
 									</button>
 								)}
+								{/* Inline provider link — only visible on hover */}
+								{providerRelated && onNavigateToProvider && (
+									<button
+										type="button"
+										onClick={onNavigateToProvider}
+										className="ml-1 hidden shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-accent/70 transition-colors hover:bg-accent/10 hover:text-accent group-hover:inline-flex"
+									>
+										<ArrowTopRightOnSquareIcon className="size-3" />
+										Provider
+									</button>
+								)}
 							</>
 						)}
 					</div>
@@ -173,14 +193,12 @@ function FormattedView({ content }: { content: string }) {
 /*  Main export                                                        */
 /* ------------------------------------------------------------------ */
 
-export function JsonEditor({ content }: { content: string }) {
+export function JsonEditor({ content, onNavigateToProvider }: { content: string; onNavigateToProvider?: () => void }) {
 	const [mode, setMode] = useState<"formatted" | "raw">("formatted");
 	const [rawContent, setRawContent] = useState(content);
 	const monaco = useMonaco();
 	useEffect(() => {
-		if (monaco) {
-			monaco.editor.defineTheme("aghub-dark", AGHUB_DARK_THEME);
-		}
+		if (monaco) monaco.editor.defineTheme("aghub-dark", AGHUB_DARK_THEME);
 	}, [monaco]);
 
 	return (
@@ -196,7 +214,9 @@ export function JsonEditor({ content }: { content: string }) {
 					/>
 				</div>
 			) : (
-				<div className="min-h-0 flex-1 overflow-y-auto"><FormattedView content={content} /></div>
+				<div className="min-h-0 flex-1 overflow-y-auto">
+					<FormattedView content={content} onNavigateToProvider={onNavigateToProvider} />
+				</div>
 			)}
 		</div>
 	);
