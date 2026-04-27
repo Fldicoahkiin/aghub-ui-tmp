@@ -7,7 +7,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
-import { getIconForFile } from "vscode-icons-ts";
+import { getIconForFile, getIconForFolder } from "vscode-icons-ts";
 import { JsonEditor } from "../../components/json-editor";
 import { MarkdownEditor } from "../../components/markdown-editor";
 import { TomlEditor } from "../../components/toml-editor";
@@ -29,6 +29,11 @@ const ICON_BASE = "https://cdn.jsdelivr.net/npm/vscode-icons-ts@0.1.2/build/icon
 function VscFileIcon({ name }: { name: string }) {
 	const icon = getIconForFile(name);
 	if (!icon) return <span className="inline-block size-4 shrink-0" />;
+	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0" />;
+}
+
+function VscFolderIcon({ name }: { name: string }) {
+	const icon = getIconForFolder(name.replace(/\/$/, ""));
 	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0" />;
 }
 
@@ -142,7 +147,8 @@ export default function CodingAgentsPage() {
 					{/* File entries */}
 					{treeOpen && (
 						<div className="flex-1 overflow-y-auto">
-							{files.map((file) => {
+							{/* Regular files first */}
+							{files.filter((f) => f.type !== "directory").map((file) => {
 								const isSelected = file.path === selectedFilePath;
 								return (
 									<button
@@ -160,6 +166,23 @@ export default function CodingAgentsPage() {
 									</button>
 								);
 							})}
+							{/* Directories */}
+							{files.filter((f) => f.type === "directory").map((dir) => (
+								<button
+									key={dir.path}
+									onClick={() => dir.linkTo ? setLocation(dir.linkTo) : undefined}
+									className={cn(
+										"flex w-full items-center gap-2 border-l-2 border-l-transparent py-1 pl-7 pr-3 text-left text-[13px] transition-colors",
+										dir.linkTo
+											? "text-muted hover:bg-surface-secondary/50 hover:text-foreground"
+											: "text-muted/60",
+									)}
+								>
+									<VscFolderIcon name={dir.name} />
+									<span className="truncate">{dir.name}</span>
+									{dir.linkTo && <ArrowTopRightOnSquareIcon className="ml-auto size-3 opacity-40" />}
+								</button>
+							))}
 						</div>
 					)}
 				</div>
