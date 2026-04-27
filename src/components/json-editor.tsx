@@ -7,6 +7,7 @@ import {
 import { Button } from "@heroui/react";
 import Editor, { useMonaco } from "@monaco-editor/react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
 import { AGHUB_DARK_THEME } from "./monaco-theme";
 
@@ -19,7 +20,8 @@ interface SectionDef {
 	label: string;
 	keys: Set<string>;
 	linkTo?: string;
-	linkLabel?: string;
+	/** i18n key for the navigation button label */
+	linkLabelKey?: string;
 }
 
 const SECTION_DEFS: SectionDef[] = [
@@ -28,7 +30,7 @@ const SECTION_DEFS: SectionDef[] = [
 		label: "Provider",
 		keys: new Set(["model", "baseUrl", "base_url", "apiBaseUrl", "api_base_url", "apiKey", "api_key", "primaryApiKey"]),
 		linkTo: "/inference-providers",
-		linkLabel: "模型服务",
+		linkLabelKey: "inferenceProviders",
 	},
 	{
 		id: "permissions",
@@ -45,21 +47,21 @@ const SECTION_DEFS: SectionDef[] = [
 		label: "Plugins",
 		keys: new Set(["enabledPlugins", "plugin", "pluginConfig"]),
 		linkTo: "/plugins",
-		linkLabel: "Plugin",
+		linkLabelKey: "plugins",
 	},
 	{
 		id: "mcp",
 		label: "MCP",
 		keys: new Set(["mcp", "mcp_servers", "mcpServers"]),
 		linkTo: "/mcp",
-		linkLabel: "MCP Server",
+		linkLabelKey: "mcpServers",
 	},
 	{
 		id: "provider-config",
 		label: "Provider Config",
 		keys: new Set(["provider", "providers"]),
 		linkTo: "/inference-providers",
-		linkLabel: "模型服务",
+		linkLabelKey: "inferenceProviders",
 	},
 ];
 
@@ -150,6 +152,7 @@ function SectionBlock({
 	section: Section;
 	onNavigate?: (href: string) => void;
 }) {
+	const { t } = useTranslation();
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
 	const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -182,22 +185,19 @@ function SectionBlock({
 
 	return (
 		<div className="rounded-lg border border-border bg-surface">
-			{/* Section header */}
-			<div className="flex items-center justify-between px-4 py-2.5">
-				<span className="text-xs font-semibold uppercase tracking-wider text-muted">
-					{def?.label ?? "General"}
-				</span>
-				{def?.linkTo && onNavigate && (
+			{/* Section header — only show if there's a link */}
+			{def?.linkTo && def.linkLabelKey && onNavigate && (
+				<div className="flex items-center justify-end px-3 pt-2">
 					<Button
 						variant="ghost"
 						size="sm"
 						onPress={() => onNavigate(def.linkTo!)}
 					>
 						<ArrowTopRightOnSquareIcon className="size-3.5" />
-						{def.linkLabel}
+						{t(def.linkLabelKey)}
 					</Button>
-				)}
-			</div>
+				</div>
+			)}
 
 			{/* Tree rows */}
 			<div className="py-0.5">
