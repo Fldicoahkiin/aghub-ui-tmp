@@ -185,22 +185,16 @@ function SectionBlock({
 
 	return (
 		<div className="rounded-lg border border-border bg-surface">
-			{/* Section header — only show if there's a link */}
-			{def?.linkTo && def.linkLabelKey && onNavigate && (
-				<div className="flex items-center justify-end px-3 pt-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						onPress={() => onNavigate(def.linkTo!)}
-					>
-						<ArrowTopRightOnSquareIcon className="size-3.5" />
-						{t(def.linkLabelKey)}
-					</Button>
-				</div>
-			)}
-
-			{/* Tree rows */}
-			<div className="py-0.5">
+			{/* Tree rows with optional link floated top-right */}
+			<div className="relative py-1">
+				{def?.linkTo && def.linkLabelKey && onNavigate && (
+					<div className="absolute right-2 top-1 z-10">
+						<Button variant="ghost" size="sm" onPress={() => onNavigate(def.linkTo!)}>
+							<ArrowTopRightOnSquareIcon className="size-3.5" />
+							{t(def.linkLabelKey)}
+						</Button>
+					</div>
+				)}
 				{visible.map((node) => {
 					const isGroup = node.type === "object" || node.type === "array";
 					const isCollapsed = collapsed.has(node.key);
