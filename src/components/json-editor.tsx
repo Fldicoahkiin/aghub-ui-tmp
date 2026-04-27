@@ -11,17 +11,94 @@ import { cn } from "../lib/utils";
 import { AGHUB_DARK_THEME } from "./monaco-theme";
 
 /* ------------------------------------------------------------------ */
-/*  Provider-related field detection                                   */
+/*  Semantic sections — classify top-level keys into blocks            */
 /* ------------------------------------------------------------------ */
 
-const PROVIDER_FIELDS = new Set(["model", "baseUrl", "base_url", "apiBaseUrl", "api_base_url"]);
+interface SectionDef {
+	id: string;
+	label: string;
+	keys: Set<string>;
+	linkTo?: string;
+	linkLabel?: string;
+}
 
-function isProviderField(label: string): boolean {
-	return PROVIDER_FIELDS.has(label);
+const SECTION_DEFS: SectionDef[] = [
+	{
+		id: "provider",
+		label: "Provider",
+		keys: new Set(["model", "baseUrl", "base_url", "apiBaseUrl", "api_base_url", "apiKey", "api_key", "primaryApiKey"]),
+		linkTo: "/inference-providers",
+		linkLabel: "模型服务",
+	},
+	{
+		id: "permissions",
+		label: "Permissions",
+		keys: new Set(["permissions"]),
+	},
+	{
+		id: "hooks",
+		label: "Hooks",
+		keys: new Set(["hooks"]),
+	},
+	{
+		id: "plugins",
+		label: "Plugins",
+		keys: new Set(["enabledPlugins", "plugin", "pluginConfig"]),
+		linkTo: "/plugins",
+		linkLabel: "Plugin",
+	},
+	{
+		id: "mcp",
+		label: "MCP",
+		keys: new Set(["mcp", "mcp_servers", "mcpServers"]),
+		linkTo: "/mcp",
+		linkLabel: "MCP Server",
+	},
+	{
+		id: "provider-config",
+		label: "Provider Config",
+		keys: new Set(["provider", "providers"]),
+		linkTo: "/inference-providers",
+		linkLabel: "模型服务",
+	},
+];
+
+interface Section {
+	def: SectionDef | null;
+	entries: [string, unknown][];
+}
+
+function classifyEntries(obj: Record<string, unknown>): Section[] {
+	const sections: Section[] = [];
+	const claimed = new Set<string>();
+
+	for (const sectionDef of SECTION_DEFS) {
+		const entries: [string, unknown][] = [];
+		for (const [k, v] of Object.entries(obj)) {
+			if (sectionDef.keys.has(k) && !claimed.has(k)) {
+				entries.push([k, v]);
+				claimed.add(k);
+			}
+		}
+		if (entries.length > 0) {
+			sections.push({ def: sectionDef, entries });
+		}
+	}
+
+	// Remaining keys → "General"
+	const remaining: [string, unknown][] = [];
+	for (const [k, v] of Object.entries(obj)) {
+		if (!claimed.has(k)) remaining.push([k, v]);
+	}
+	if (remaining.length > 0) {
+		sections.unshift({ def: null, entries: remaining });
+	}
+
+	return sections;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tree builder                                                       */
+/*  Tree node rendering                                                */
 /* ------------------------------------------------------------------ */
 
 interface TreeNode {
@@ -33,30 +110,21 @@ interface TreeNode {
 	childCount?: number;
 }
 
-function buildTree(obj: unknown, prefix: string, label: string, depth: number): TreeNode[] {
+function buildNodes(key: string, label: string, value: unknown, depth: number): TreeNode[] {
 	const nodes: TreeNode[] = [];
-	if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
-		const entries = Object.entries(obj as Record<string, unknown>);
-		nodes.push({ key: prefix || "root", label, depth, type: "object", childCount: entries.length });
+	if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+		const entries = Object.entries(value as Record<string, unknown>);
+		nodes.push({ key, label, depth, type: "object", childCount: entries.length });
 		for (const [k, v] of entries) {
-			const childKey = prefix ? `${prefix}.${k}` : k;
-			if (v !== null && typeof v === "object") {
-				nodes.push(...buildTree(v, childKey, k, depth + 1));
-			} else {
-				nodes.push({ key: childKey, label: k, depth: depth + 1, type: "value", value: v });
-			}
+			nodes.push(...buildNodes(`${key}.${k}`, k, v, depth + 1));
 		}
-	} else if (Array.isArray(obj)) {
-		nodes.push({ key: prefix || "root", label, depth, type: "array", childCount: obj.length });
-		for (let i = 0; i < obj.length; i++) {
-			const childKey = `${prefix}[${i}]`;
-			const item = obj[i];
-			if (item !== null && typeof item === "object") {
-				nodes.push(...buildTree(item, childKey, `[${i}]`, depth + 1));
-			} else {
-				nodes.push({ key: childKey, label: `[${i}]`, depth: depth + 1, type: "value", value: item });
-			}
+	} else if (Array.isArray(value)) {
+		nodes.push({ key, label, depth, type: "array", childCount: value.length });
+		for (let i = 0; i < value.length; i++) {
+			nodes.push(...buildNodes(`${key}[${i}]`, `[${i}]`, value[i], depth + 1));
 		}
+	} else {
+		nodes.push({ key, label, depth, type: "value", value });
 	}
 	return nodes;
 }
@@ -72,19 +140,28 @@ function maskString(str: string): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Formatted tree view                                                */
+/*  Section block                                                      */
 /* ------------------------------------------------------------------ */
 
-function FormattedView({ content, onNavigateToProvider }: { content: string; onNavigateToProvider?: () => void }) {
+function SectionBlock({
+	section,
+	onNavigate,
+}: {
+	section: Section;
+	onNavigate?: (href: string) => void;
+}) {
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
 	const [editingKey, setEditingKey] = useState<string | null>(null);
 
-	let parsed: unknown;
-	try { parsed = JSON.parse(content); } catch { return <div className="p-3 text-sm text-danger">Invalid JSON</div>; }
-
-	const allNodes = buildTree(parsed, "", "root", -1);
-	const nodes = allNodes.slice(1);
+	const allNodes: TreeNode[] = [];
+	for (const [k, v] of section.entries) {
+		if (v !== null && typeof v === "object") {
+			allNodes.push(...buildNodes(k, k, v, 0));
+		} else {
+			allNodes.push({ key: k, label: k, depth: 0, type: "value", value: v });
+		}
+	}
 
 	const toggleCollapse = (key: string) => {
 		setCollapsed((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
@@ -92,7 +169,7 @@ function FormattedView({ content, onNavigateToProvider }: { content: string; onN
 
 	const visible: TreeNode[] = [];
 	const collapsedPrefixes: string[] = [];
-	for (const node of nodes) {
+	for (const node of allNodes) {
 		const isHidden = collapsedPrefixes.some((p) => node.key.startsWith(p + ".") || node.key.startsWith(p + "["));
 		if (isHidden) continue;
 		visible.push(node);
@@ -101,91 +178,107 @@ function FormattedView({ content, onNavigateToProvider }: { content: string; onN
 		}
 	}
 
+	const def = section.def;
+
 	return (
-		<div className="space-y-px">
-			{visible.map((node) => {
-				const isGroup = node.type === "object" || node.type === "array";
-				const isCollapsed = collapsed.has(node.key);
-				const secret = node.type === "value" && isSecret(node.label);
-				const isShown = showSecret[node.key] ?? false;
-				const isEditing = editingKey === node.key;
-				const providerRelated = node.type === "value" && isProviderField(node.label);
-
-				return (
-					<div
-						key={node.key}
-						className={cn(
-							"group flex items-center gap-1 rounded-sm py-1 pr-2 text-[13px] transition-colors",
-							isGroup ? "hover:bg-surface-secondary/80" : "hover:bg-surface-secondary/50",
-							providerRelated ? "border-l-2 border-l-accent/40 pl-1.5" : "border-l-2 border-l-transparent pl-1.5",
-						)}
-						style={{ paddingLeft: `${6 + node.depth * 16}px` }}
+		<div className="rounded-md border border-border">
+			{/* Section header */}
+			<div className="flex items-center justify-between border-b border-border bg-surface-secondary/30 px-3 py-1.5">
+				<span className="text-xs font-medium text-muted">
+					{def?.label ?? "General"}
+				</span>
+				{def?.linkTo && onNavigate && (
+					<button
+						type="button"
+						onClick={() => onNavigate(def.linkTo!)}
+						className="inline-flex items-center gap-1 text-[11px] text-accent/60 transition-colors hover:text-accent"
 					>
-						{isGroup ? (
-							<button type="button" onClick={() => toggleCollapse(node.key)} className="flex size-4 shrink-0 items-center justify-center text-muted">
-								<ChevronRightIcon className={cn("size-3 transition-transform", !isCollapsed && "rotate-90")} />
-							</button>
-						) : (
-							<span className="size-4 shrink-0" />
-						)}
+						{def.linkLabel}
+						<ArrowTopRightOnSquareIcon className="size-2.5" />
+					</button>
+				)}
+			</div>
 
-						<span className={cn("shrink-0", isGroup ? "font-medium text-foreground" : "text-muted")}>{node.label}</span>
+			{/* Tree rows */}
+			<div className="py-0.5">
+				{visible.map((node) => {
+					const isGroup = node.type === "object" || node.type === "array";
+					const isCollapsed = collapsed.has(node.key);
+					const secret = node.type === "value" && isSecret(node.label);
+					const isShown = showSecret[node.key] ?? false;
+					const isEditing = editingKey === node.key;
 
-						{isGroup && <span className="ml-1 text-xs text-muted/50">{node.type === "array" ? `[${node.childCount}]` : `{${node.childCount}}`}</span>}
+					return (
+						<div
+							key={node.key}
+							className={cn(
+								"flex items-center gap-1 px-2 py-1 text-[13px] transition-colors",
+								isGroup ? "hover:bg-surface-secondary/60" : "hover:bg-surface-secondary/40",
+							)}
+							style={{ paddingLeft: `${8 + node.depth * 16}px` }}
+						>
+							{isGroup ? (
+								<button type="button" onClick={() => toggleCollapse(node.key)} className="flex size-4 shrink-0 items-center justify-center text-muted">
+									<ChevronRightIcon className={cn("size-3 transition-transform", !isCollapsed && "rotate-90")} />
+								</button>
+							) : (
+								<span className="size-4 shrink-0" />
+							)}
 
-						{node.type === "value" && (
-							<>
-								<span className="mx-1 text-muted/30">:</span>
-								{typeof node.value === "boolean" ? (
-									<button
-										type="button"
-										className={cn(
-											"rounded-full px-2 py-0.5 font-mono text-xs font-medium transition-colors",
-											node.value ? "bg-accent/15 text-accent" : "bg-surface-secondary text-muted",
-										)}
-									>
-										{String(node.value)}
-									</button>
-								) : isEditing ? (
-									<input
-										autoFocus
-										defaultValue={String(node.value)}
-										onBlur={() => setEditingKey(null)}
-										onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingKey(null); }}
-										className="min-w-0 flex-1 rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[13px] text-foreground outline-none focus:border-primary"
-									/>
-								) : (
-									<span
-										className="min-w-0 flex-1 cursor-text truncate font-mono text-foreground/80"
-										onDoubleClick={() => !secret && setEditingKey(node.key)}
-										title={String(node.value)}
-									>
-										{secret && !isShown && typeof node.value === "string"
-											? maskString(node.value)
-											: typeof node.value === "string" ? `"${node.value}"` : String(node.value)}
-									</span>
-								)}
-								{secret && (
-									<button type="button" onClick={() => setShowSecret((prev) => ({ ...prev, [node.key]: !prev[node.key] }))} className="shrink-0 text-muted/50 hover:text-foreground">
-										{isShown ? <EyeSlashIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
-									</button>
-								)}
-								{/* Inline provider link — always visible */}
-								{providerRelated && onNavigateToProvider && (
-									<button
-										type="button"
-										onClick={onNavigateToProvider}
-										className="ml-1 inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-accent/60 transition-colors hover:bg-accent/10 hover:text-accent"
-									>
-										Provider
-										<ArrowTopRightOnSquareIcon className="size-2.5" />
-									</button>
-								)}
-							</>
-						)}
-					</div>
-				);
-			})}
+							<span className={cn("shrink-0", isGroup ? "font-medium text-foreground" : "text-muted")}>{node.label}</span>
+
+							{isGroup && <span className="ml-1 text-xs text-muted/50">{node.type === "array" ? `[${node.childCount}]` : `{${node.childCount}}`}</span>}
+
+							{node.type === "value" && (
+								<>
+									<span className="mx-1 text-muted/30">:</span>
+									{typeof node.value === "boolean" ? (
+										<button type="button" className={cn("rounded-full px-2 py-0.5 font-mono text-xs font-medium transition-colors", node.value ? "bg-accent/15 text-accent" : "bg-surface-secondary text-muted")}>
+											{String(node.value)}
+										</button>
+									) : isEditing ? (
+										<input autoFocus defaultValue={String(node.value)} onBlur={() => setEditingKey(null)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingKey(null); }}
+											className="min-w-0 flex-1 rounded border border-border bg-surface px-1.5 py-0.5 font-mono text-[13px] text-foreground outline-none focus:border-primary"
+										/>
+									) : (
+										<span className="min-w-0 flex-1 cursor-text truncate font-mono text-foreground/80" onDoubleClick={() => !secret && setEditingKey(node.key)} title={String(node.value)}>
+											{secret && !isShown && typeof node.value === "string" ? maskString(node.value) : typeof node.value === "string" ? `"${node.value}"` : String(node.value)}
+										</span>
+									)}
+									{secret && (
+										<button type="button" onClick={() => setShowSecret((prev) => ({ ...prev, [node.key]: !prev[node.key] }))} className="shrink-0 text-muted/50 hover:text-foreground">
+											{isShown ? <EyeSlashIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+										</button>
+									)}
+								</>
+							)}
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Formatted view                                                     */
+/* ------------------------------------------------------------------ */
+
+function FormattedView({ content, onNavigate }: { content: string; onNavigate?: (href: string) => void }) {
+	let parsed: unknown;
+	try { parsed = JSON.parse(content); } catch { return <div className="p-3 text-sm text-danger">Invalid JSON</div>; }
+
+	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return <div className="p-3 text-sm text-muted">Non-object JSON</div>;
+	}
+
+	const sections = classifyEntries(parsed as Record<string, unknown>);
+
+	return (
+		<div className="space-y-3">
+			{sections.map((section) => (
+				<SectionBlock key={section.def?.id ?? "general"} section={section} onNavigate={onNavigate} />
+			))}
 		</div>
 	);
 }
@@ -202,6 +295,14 @@ export function JsonEditor({ content, onNavigateToProvider }: { content: string;
 		if (monaco) monaco.editor.defineTheme("aghub-dark", AGHUB_DARK_THEME);
 	}, [monaco]);
 
+	const handleNavigate = (href: string) => {
+		if (onNavigateToProvider && href === "/inference-providers") {
+			onNavigateToProvider();
+		} else {
+			window.location.href = href;
+		}
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			<div className="mb-2 flex gap-1">
@@ -216,7 +317,7 @@ export function JsonEditor({ content, onNavigateToProvider }: { content: string;
 				</div>
 			) : (
 				<div className="min-h-0 flex-1 overflow-y-auto">
-					<FormattedView content={content} onNavigateToProvider={onNavigateToProvider} />
+					<FormattedView content={content} onNavigate={handleNavigate} />
 				</div>
 			)}
 		</div>
