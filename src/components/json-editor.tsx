@@ -181,21 +181,21 @@ function SectionBlock({
 	const def = section.def;
 
 	return (
-		<div className="rounded-md border border-border">
+		<div className="rounded-lg border border-border bg-surface">
 			{/* Section header */}
-			<div className="flex items-center justify-between border-b border-border bg-surface-secondary/30 px-3 py-1.5">
-				<span className="text-xs font-medium text-muted">
+			<div className="flex items-center justify-between px-4 py-2.5">
+				<span className="text-xs font-semibold uppercase tracking-wider text-muted">
 					{def?.label ?? "General"}
 				</span>
 				{def?.linkTo && onNavigate && (
-					<button
-						type="button"
-						onClick={() => onNavigate(def.linkTo!)}
-						className="inline-flex items-center gap-1 text-[11px] text-accent/60 transition-colors hover:text-accent"
+					<Button
+						variant="ghost"
+						size="sm"
+						onPress={() => onNavigate(def.linkTo!)}
 					>
+						<ArrowTopRightOnSquareIcon className="size-3.5" />
 						{def.linkLabel}
-						<ArrowTopRightOnSquareIcon className="size-2.5" />
-					</button>
+					</Button>
 				)}
 			</div>
 
