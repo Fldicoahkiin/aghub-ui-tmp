@@ -1,24 +1,64 @@
-import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
+import {
+	ChevronRightIcon,
+	EyeIcon,
+	EyeSlashIcon,
+} from "@heroicons/react/24/solid";
 import { Button } from "@heroui/react";
 import Editor from "@monaco-editor/react";
 import { useState } from "react";
+import { cn } from "../lib/utils";
 
-function flattenJson(
-	obj: Record<string, unknown>,
-	prefix = "",
-): Array<{ key: string; value: unknown }> {
-	const result: Array<{ key: string; value: unknown }> = [];
+/* ------------------------------------------------------------------ */
+/*  Tree node types                                                    */
+/* ------------------------------------------------------------------ */
 
-	for (const [k, v] of Object.entries(obj)) {
-		const key = prefix ? `${prefix}.${k}` : k;
-		if (v !== null && typeof v === "object" && !Array.isArray(v)) {
-			result.push(...flattenJson(v as Record<string, unknown>, key));
-		} else {
-			result.push({ key, value: v });
+interface TreeNode {
+	key: string;
+	label: string;
+	depth: number;
+	type: "object" | "array" | "value";
+	value?: unknown;
+	childCount?: number;
+}
+
+function buildTree(
+	obj: unknown,
+	prefix: string,
+	label: string,
+	depth: number,
+): TreeNode[] {
+	const nodes: TreeNode[] = [];
+
+	if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
+		const entries = Object.entries(obj as Record<string, unknown>);
+		nodes.push({ key: prefix || "root", label, depth, type: "object", childCount: entries.length });
+		for (const [k, v] of entries) {
+			const childKey = prefix ? `${prefix}.${k}` : k;
+			if (v !== null && typeof v === "object") {
+				nodes.push(...buildTree(v, childKey, k, depth + 1));
+			} else {
+				nodes.push({ key: childKey, label: k, depth: depth + 1, type: "value", value: v });
+			}
+		}
+	} else if (Array.isArray(obj)) {
+		nodes.push({ key: prefix || "root", label, depth, type: "array", childCount: obj.length });
+		for (let i = 0; i < obj.length; i++) {
+			const childKey = `${prefix}[${i}]`;
+			const item = obj[i];
+			if (item !== null && typeof item === "object") {
+				nodes.push(...buildTree(item, childKey, `[${i}]`, depth + 1));
+			} else {
+				nodes.push({ key: childKey, label: `[${i}]`, depth: depth + 1, type: "value", value: item });
+			}
 		}
 	}
 
-	return result;
+	return nodes;
+}
+
+function isSecret(key: string): boolean {
+	const lower = key.toLowerCase();
+	return lower.includes("key") || lower.includes("token") || lower.includes("secret");
 }
 
 function maskString(str: string): string {
@@ -26,38 +66,150 @@ function maskString(str: string): string {
 	return str.slice(0, 4) + "\u2022".repeat(str.length - 8) + str.slice(-4);
 }
 
-export function JsonEditor({ content }: { content: string }) {
-	const [mode, setMode] = useState<"formatted" | "raw">("formatted");
-	const [rawContent, setRawContent] = useState(content);
+/* ------------------------------------------------------------------ */
+/*  Formatted Tree View                                                */
+/* ------------------------------------------------------------------ */
+
+function FormattedView({ content }: { content: string }) {
+	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
 
-	let parsed: Record<string, unknown> | null = null;
+	let parsed: unknown;
 	try {
 		parsed = JSON.parse(content);
 	} catch {
-		// invalid JSON — fall through to raw mode
+		return <div className="p-3 text-sm text-danger">Invalid JSON</div>;
+	}
+
+	const allNodes = buildTree(parsed, "", "root", -1);
+	// Skip the synthetic root node
+	const nodes = allNodes.slice(1);
+
+	const toggleCollapse = (key: string) => {
+		setCollapsed((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) next.delete(key);
+			else next.add(key);
+			return next;
+		});
+	};
+
+	// Determine which nodes are visible (not under a collapsed parent)
+	const visible: TreeNode[] = [];
+	const collapsedPrefixes: string[] = [];
+	for (const node of nodes) {
+		const isHidden = collapsedPrefixes.some((p) =>
+			node.key.startsWith(p + ".") || node.key.startsWith(p + "["),
+		);
+		if (isHidden) continue;
+		visible.push(node);
+		if ((node.type === "object" || node.type === "array") && collapsed.has(node.key)) {
+			collapsedPrefixes.push(node.key);
+		}
 	}
 
 	return (
+		<div className="space-y-px">
+			{visible.map((node) => {
+				const isGroup = node.type === "object" || node.type === "array";
+				const isCollapsed = collapsed.has(node.key);
+				const secret = node.type === "value" && isSecret(node.label);
+				const isShown = showSecret[node.key] ?? false;
+
+				return (
+					<div
+						key={node.key}
+						className={cn(
+							"flex items-center gap-1 rounded-sm px-2 py-1 text-[13px] transition-colors",
+							isGroup ? "hover:bg-surface-secondary/80" : "hover:bg-surface-secondary/50",
+						)}
+						style={{ paddingLeft: `${8 + node.depth * 16}px` }}
+					>
+						{/* Collapse toggle */}
+						{isGroup ? (
+							<button
+								type="button"
+								onClick={() => toggleCollapse(node.key)}
+								className="flex size-4 shrink-0 items-center justify-center text-muted"
+							>
+								<ChevronRightIcon className={cn("size-3 transition-transform", !isCollapsed && "rotate-90")} />
+							</button>
+						) : (
+							<span className="size-4 shrink-0" />
+						)}
+
+						{/* Label */}
+						<span className={cn(
+							"shrink-0",
+							isGroup ? "font-medium text-foreground" : "text-muted",
+						)}>
+							{node.label}
+						</span>
+
+						{/* Group badge */}
+						{isGroup && (
+							<span className="ml-1 text-xs text-muted/60">
+								{node.type === "array" ? `[${node.childCount}]` : `{${node.childCount}}`}
+							</span>
+						)}
+
+						{/* Value */}
+						{node.type === "value" && (
+							<>
+								<span className="mx-1 text-muted/40">:</span>
+								{secret && !isShown ? (
+									<span className="min-w-0 flex-1 truncate font-mono text-muted">
+										{typeof node.value === "string" ? maskString(node.value) : String(node.value)}
+									</span>
+								) : (
+									<span className={cn(
+										"min-w-0 flex-1 truncate font-mono",
+										typeof node.value === "string" ? "text-green-400/80"
+											: typeof node.value === "number" ? "text-blue-400/80"
+											: typeof node.value === "boolean" ? "text-yellow-400/80"
+											: "text-foreground",
+									)}>
+										{typeof node.value === "string" ? `"${node.value}"` : String(node.value)}
+									</span>
+								)}
+								{secret && (
+									<button
+										type="button"
+										onClick={() => setShowSecret((prev) => ({ ...prev, [node.key]: !prev[node.key] }))}
+										className="shrink-0 text-muted/60 hover:text-foreground"
+									>
+										{isShown ? <EyeSlashIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
+									</button>
+								)}
+							</>
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main export                                                        */
+/* ------------------------------------------------------------------ */
+
+export function JsonEditor({ content }: { content: string }) {
+	const [mode, setMode] = useState<"formatted" | "raw">("formatted");
+	const [rawContent, setRawContent] = useState(content);
+
+	return (
 		<div className="flex h-full flex-col">
-			<div className="mb-3 flex gap-1">
-				<Button
-					size="sm"
-					variant={mode === "formatted" ? "secondary" : "ghost"}
-					onPress={() => setMode("formatted")}
-				>
+			<div className="mb-2 flex gap-1">
+				<Button size="sm" variant={mode === "formatted" ? "secondary" : "ghost"} onPress={() => setMode("formatted")}>
 					Formatted
 				</Button>
-				<Button
-					size="sm"
-					variant={mode === "raw" ? "secondary" : "ghost"}
-					onPress={() => setMode("raw")}
-				>
+				<Button size="sm" variant={mode === "raw" ? "secondary" : "ghost"} onPress={() => setMode("raw")}>
 					Raw
 				</Button>
 			</div>
 
-			{mode === "raw" || !parsed ? (
+			{mode === "raw" ? (
 				<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
 					<Editor
 						height="100%"
@@ -79,53 +231,8 @@ export function JsonEditor({ content }: { content: string }) {
 					/>
 				</div>
 			) : (
-				<div className="space-y-0.5">
-					{flattenJson(parsed).map(({ key, value }) => {
-						const isSecret =
-							typeof key === "string" &&
-							(key.toLowerCase().includes("key") ||
-								key.toLowerCase().includes("token") ||
-								key.toLowerCase().includes("secret"));
-						const isShown = showSecret[key] ?? false;
-						const displayValue =
-							isSecret && !isShown && typeof value === "string"
-								? maskString(value)
-								: String(value);
-
-						return (
-							<div
-								key={key}
-								className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-surface-secondary"
-							>
-								<span className="w-48 shrink-0 truncate text-sm text-muted" title={key}>
-									{key}
-								</span>
-								<input
-									type={isSecret && !isShown ? "password" : "text"}
-									defaultValue={displayValue}
-									className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary"
-								/>
-								{isSecret && (
-									<button
-										type="button"
-										onClick={() =>
-											setShowSecret((prev) => ({
-												...prev,
-												[key]: !prev[key],
-											}))
-										}
-										className="shrink-0 text-muted hover:text-foreground"
-									>
-										{isShown ? (
-											<EyeSlashIcon className="size-4" />
-										) : (
-											<EyeIcon className="size-4" />
-										)}
-									</button>
-								)}
-							</div>
-						);
-					})}
+				<div className="min-h-0 flex-1 overflow-y-auto">
+					<FormattedView content={content} />
 				</div>
 			)}
 		</div>

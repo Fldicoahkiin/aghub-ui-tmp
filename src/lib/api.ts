@@ -167,6 +167,16 @@ const MOCK_AGENTS: AgentInfo[] = [
 		skills_paths: { global_read: [], global_write: null, project_read: [], project_write: null },
 	},
 	{
+		id: "codex",
+		display_name: "Codex",
+		capabilities: {
+			skills: { scopes: { global: false, project: false }, universal: false, mutable_global: false, mutable_project: false },
+			mcp: { scopes: { global: false, project: false }, stdio: false, remote: false, enable_disable: false },
+			sub_agents: { scopes: { global: false, project: false } },
+		},
+		skills_paths: { global_read: [], global_write: null, project_read: [], project_write: null },
+	},
+	{
 		id: "openclaw",
 		display_name: "OpenClaw",
 		capabilities: {
@@ -182,6 +192,7 @@ const MOCK_AGENT_AVAILABILITY: AgentAvailabilityDto[] = [
 	{ id: "claude", has_global_directory: true, has_cli: true, is_available: true },
 	{ id: "opencode", has_global_directory: false, has_cli: true, is_available: true },
 	{ id: "cursor", has_global_directory: false, has_cli: false, is_available: false },
+	{ id: "codex", has_global_directory: true, has_cli: true, is_available: true },
 	{ id: "openclaw", has_global_directory: true, has_cli: true, is_available: true },
 ];
 
@@ -535,6 +546,34 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 					null,
 					2,
 				),
+			},
+		],
+	},
+	codex: {
+		agentId: "codex",
+		rootPath: "~/.codex",
+		files: [
+			{
+				path: "~/.codex/config.json",
+				name: "config.json",
+				type: "json",
+				content: JSON.stringify(
+					{
+						model: "codex-mini",
+						apiKey: "sk-codex-••••••••••••••••••••••••••••••••",
+						baseUrl: "https://api.openai.com/v1",
+						approval_mode: "suggest",
+						sandbox: { type: "docker", image: "node:20" },
+					},
+					null,
+					2,
+				),
+			},
+			{
+				path: "~/.codex/instructions.md",
+				name: "instructions.md",
+				type: "markdown",
+				content: "# Codex Instructions\n\nDefault instructions for Codex CLI.\n\n## Guidelines\n\n- Always run tests before applying changes\n- Prefer minimal diffs\n- Use sandbox mode for destructive operations\n",
 			},
 		],
 	},

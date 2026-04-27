@@ -1,14 +1,13 @@
 import {
 	ArrowTopRightOnSquareIcon,
 	ChevronRightIcon,
-	CodeBracketIcon,
-	DocumentIcon,
 } from "@heroicons/react/24/solid";
 import { Button, Card, Label, ListBox } from "@heroui/react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
+import { getIconForFile } from "vscode-icons-ts";
 import { JsonEditor } from "../../components/json-editor";
 import { MarkdownEditor } from "../../components/markdown-editor";
 import { useAgentAvailability } from "../../hooks/use-agent-availability";
@@ -20,6 +19,22 @@ import {
 	workspaceFileContentQueryOptions,
 } from "../../requests/workspace";
 
+/* ------------------------------------------------------------------ */
+/*  VSCode file icon component                                         */
+/* ------------------------------------------------------------------ */
+
+const ICON_BASE = "https://cdn.jsdelivr.net/gh/nicolo-ribaudo/vscode-icons-ts@HEAD/icons/";
+
+function VscFileIcon({ name }: { name: string }) {
+	const icon = getIconForFile(name);
+	if (!icon) return <span className="inline-block size-4 shrink-0" />;
+	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0" />;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Provider fields detection                                          */
+/* ------------------------------------------------------------------ */
+
 function hasProviderFields(content: string): boolean {
 	try {
 		const parsed = JSON.parse(content);
@@ -29,15 +44,9 @@ function hasProviderFields(content: string): boolean {
 	}
 }
 
-function FileIcon({ name }: { name: string }) {
-	if (name.endsWith(".json")) {
-		return <CodeBracketIcon className="size-4 shrink-0 text-yellow-500/70" />;
-	}
-	if (name.endsWith(".md")) {
-		return <DocumentIcon className="size-4 shrink-0 text-blue-400/70" />;
-	}
-	return <DocumentIcon className="size-4 shrink-0 text-muted" />;
-}
+/* ------------------------------------------------------------------ */
+/*  Main component                                                     */
+/* ------------------------------------------------------------------ */
 
 export default function CodingAgentsPage() {
 	const { t } = useTranslation();
@@ -50,6 +59,8 @@ export default function CodingAgentsPage() {
 		usableAgents[0]?.id ?? "",
 	);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+	const [treeOpen, setTreeOpen] = useState(true);
+	const [isDirty, setIsDirty] = useState(false);
 
 	const { data: files = [] } = useSuspenseQuery(
 		workspaceAgentFilesQueryOptions({ api, agentId: selectedAgentId }),
@@ -62,6 +73,15 @@ export default function CodingAgentsPage() {
 			path: selectedFilePath ?? "",
 		}),
 	});
+
+	// Reset dirty state on file change
+	const prevFile = useRef(selectedFilePath);
+	useEffect(() => {
+		if (prevFile.current !== selectedFilePath) {
+			setIsDirty(false);
+			prevFile.current = selectedFilePath;
+		}
+	}, [selectedFilePath]);
 
 	const selectedFile = files.find((f) => f.path === selectedFilePath) ?? null;
 	const showProviderBanner =
@@ -90,16 +110,12 @@ export default function CodingAgentsPage() {
 						if (!id) return;
 						setSelectedAgentId(id);
 						setSelectedFilePath(null);
+						setTreeOpen(true);
 					}}
 					className="p-2"
 				>
 					{usableAgents.map((agent) => (
-						<ListBox.Item
-							key={agent.id}
-							id={agent.id}
-							textValue={agent.display_name}
-							className="data-selected:bg-surface"
-						>
+						<ListBox.Item key={agent.id} id={agent.id} textValue={agent.display_name} className="data-selected:bg-surface">
 							<div className="flex min-w-0 items-center gap-2">
 								<AgentIcon id={agent.id} name={agent.display_name} size="xs" variant="ghost" />
 								<div className="min-w-0 flex-1">
@@ -112,33 +128,39 @@ export default function CodingAgentsPage() {
 
 				{/* File tree */}
 				<div className="flex min-h-0 flex-1 flex-col border-t border-border">
-					{/* Root path header */}
-					<div className="flex items-center gap-1.5 px-3 py-2 text-xs">
-						<ChevronRightIcon className="size-3 rotate-90 text-muted" />
+					{/* Root — clickable to collapse/expand */}
+					<button
+						type="button"
+						onClick={() => setTreeOpen(!treeOpen)}
+						className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-surface-secondary/50"
+					>
+						<ChevronRightIcon className={cn("size-3 text-muted transition-transform", treeOpen && "rotate-90")} />
 						<span className="font-mono font-medium text-accent">{rootPath}</span>
-					</div>
+					</button>
 
 					{/* File entries */}
-					<div className="flex-1 overflow-y-auto">
-						{files.map((file) => {
-							const isSelected = file.path === selectedFilePath;
-							return (
-								<button
-									key={file.path}
-									onClick={() => setSelectedFilePath(file.path)}
-									className={cn(
-										"flex w-full items-center gap-2 border-l-2 py-1.5 pl-6 pr-3 text-left text-[13px] transition-colors",
-										isSelected
-											? "border-l-accent bg-surface text-foreground"
-											: "border-l-transparent text-muted hover:bg-surface-secondary/60 hover:text-foreground",
-									)}
-								>
-									<FileIcon name={file.name} />
-									<span className="truncate">{file.name}</span>
-								</button>
-							);
-						})}
-					</div>
+					{treeOpen && (
+						<div className="flex-1 overflow-y-auto">
+							{files.map((file) => {
+								const isSelected = file.path === selectedFilePath;
+								return (
+									<button
+										key={file.path}
+										onClick={() => setSelectedFilePath(file.path)}
+										className={cn(
+											"flex w-full items-center gap-2 border-l-2 py-1 pl-7 pr-3 text-left text-[13px] transition-colors",
+											isSelected
+												? "border-l-accent bg-surface text-foreground"
+												: "border-l-transparent text-muted hover:bg-surface-secondary/50 hover:text-foreground",
+										)}
+									>
+										<VscFileIcon name={file.name} />
+										<span className="truncate">{file.name}</span>
+									</button>
+								);
+							})}
+						</div>
+					)}
 				</div>
 			</div>
 
@@ -149,20 +171,21 @@ export default function CodingAgentsPage() {
 						<Card className="flex h-full flex-col">
 							<Card.Header className="flex flex-row items-center justify-between">
 								<div className="flex min-w-0 items-center gap-2">
-									<FileIcon name={selectedFile.name} />
+									<VscFileIcon name={selectedFile.name} />
 									<Card.Title className="truncate text-sm font-medium">
 										{selectedFile.name}
 									</Card.Title>
-									<span className="shrink-0 text-xs text-muted">{selectedFile.path}</span>
+									<span className="shrink-0 text-xs text-muted">{rootPath}</span>
 								</div>
-								<div className="flex shrink-0 gap-2">
-									<Button variant="tertiary" size="sm">{t("cancel")}</Button>
-									<Button size="sm">{t("save")}</Button>
-								</div>
+								{isDirty && (
+									<div className="flex shrink-0 gap-2">
+										<Button variant="tertiary" size="sm" onPress={() => setIsDirty(false)}>{t("cancel")}</Button>
+										<Button size="sm" onPress={() => setIsDirty(false)}>{t("save")}</Button>
+									</div>
+								)}
 							</Card.Header>
 
 							<Card.Content className="flex min-h-0 flex-1 flex-col">
-								{/* Provider config hint */}
 								{showProviderBanner && (
 									<div className="mb-3 flex items-center justify-between rounded-md border border-border bg-surface-secondary/50 px-3 py-2 text-xs text-muted">
 										<span>{t("providerConfigBanner")}</span>
@@ -173,7 +196,6 @@ export default function CodingAgentsPage() {
 									</div>
 								)}
 
-								{/* Editor */}
 								<div className="min-h-0 flex-1">
 									{selectedFile.type === "json" ? (
 										<JsonEditor content={fileContent} />
