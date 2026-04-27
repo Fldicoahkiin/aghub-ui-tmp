@@ -15,8 +15,8 @@ Design prototype for [aghub](https://github.com/AkaraChen/aghub) inference provi
 ### Manual deploy
 
 ```bash
-pnpm install
-pnpm build
+bun install
+bun build
 ```
 
 Output is in `dist/`. Any static hosting works (Vercel, Netlify, Cloudflare Pages, etc.).
@@ -27,7 +27,7 @@ Framework is auto-detected as Vite. No extra config needed. If needed, create `v
 
 ```json
 {
-  "buildCommand": "pnpm build",
+  "buildCommand": "bun build",
   "outputDirectory": "dist",
   "framework": "vite"
 }
@@ -36,8 +36,8 @@ Framework is auto-detected as Vite. No extra config needed. If needed, create `v
 ## Dev
 
 ```bash
-pnpm install
-pnpm dev
+bun install
+bun dev
 ```
 
 ## Stack

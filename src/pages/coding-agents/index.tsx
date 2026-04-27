@@ -1,27 +1,26 @@
-import {
-	ArrowTopRightOnSquareIcon,
-	ChevronRightIcon,
-} from "@heroicons/react/24/solid";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/solid";
 import { Button, Card, Label, ListBox } from "@heroui/react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
+import { Tree } from "react-arborist";
+import type { NodeRendererProps } from "react-arborist";
 import { getIconForFile, getIconForFolder } from "vscode-icons-ts";
 import { JsonEditor } from "../../components/json-editor";
 import { MarkdownEditor } from "../../components/markdown-editor";
 import { TomlEditor } from "../../components/toml-editor";
 import { useAgentAvailability } from "../../hooks/use-agent-availability";
 import { useApi } from "../../hooks/use-api";
+import type { AgentConfigFile } from "../../lib/api";
 import { AgentIcon } from "../../lib/agent-icons";
-import { cn } from "../../lib/utils";
 import {
 	workspaceAgentFilesQueryOptions,
 	workspaceFileContentQueryOptions,
 } from "../../requests/workspace";
 
 /* ------------------------------------------------------------------ */
-/*  VSCode file icon component                                         */
+/*  VSCode icons                                                       */
 /* ------------------------------------------------------------------ */
 
 const ICON_BASE = "https://cdn.jsdelivr.net/npm/vscode-icons-ts@0.1.2/build/icons/";
@@ -32,14 +31,107 @@ function VscFileIcon({ name }: { name: string }) {
 	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0" />;
 }
 
-function VscFolderIcon({ name }: { name: string }) {
-	const icon = getIconForFolder(name.replace(/\/$/, ""));
+function VscFolderIcon({ name, isOpen }: { name: string; isOpen?: boolean }) {
+	const base = name.replace(/\/$/, "");
+	const icon = isOpen
+		? getIconForFolder(base).replace("default_folder", "default_folder_opened")
+		: getIconForFolder(base);
 	return <img src={`${ICON_BASE}${icon}`} alt="" className="size-4 shrink-0" />;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Provider fields detection                                          */
+/*  Tree data conversion                                               */
 /* ------------------------------------------------------------------ */
+
+interface TreeNodeData {
+	id: string;
+	name: string;
+	fileType: AgentConfigFile["type"];
+	filePath: string;
+	linkTo?: string;
+	children?: TreeNodeData[];
+}
+
+function filesToTreeData(files: AgentConfigFile[], rootPath: string): TreeNodeData[] {
+	const dirs: TreeNodeData[] = [];
+	const leaves: TreeNodeData[] = [];
+
+	for (const file of files) {
+		if (file.type === "directory") {
+			let children: TreeNodeData[] = [];
+			try {
+				const entries: string[] = JSON.parse(file.content);
+				children = entries.map((entry) => ({
+					id: `${file.path}${entry}`,
+					name: entry,
+					fileType: entry.endsWith("/") ? "directory" as const : "json" as const,
+					filePath: `${file.path}${entry}`,
+				}));
+			} catch { /* empty */ }
+
+			dirs.push({
+				id: file.path,
+				name: file.name,
+				fileType: "directory",
+				filePath: file.path,
+				linkTo: file.linkTo,
+				children,
+			});
+		} else {
+			leaves.push({
+				id: file.path,
+				name: file.name,
+				fileType: file.type,
+				filePath: file.path,
+			});
+		}
+	}
+
+	return [
+		{
+			id: rootPath,
+			name: rootPath,
+			fileType: "directory",
+			filePath: rootPath,
+			children: [...dirs, ...leaves],
+		},
+	];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tree node renderer                                                 */
+/* ------------------------------------------------------------------ */
+
+function FileTreeNode({ node, style }: NodeRendererProps<TreeNodeData>) {
+	const isDir = node.data.fileType === "directory";
+	const isSelected = node.isSelected && !isDir;
+
+	return (
+		<div
+			style={style}
+			className={`flex cursor-pointer items-center gap-1.5 border-l-2 pr-3 text-[13px] leading-7 transition-colors ${
+				isSelected
+					? "border-l-accent bg-surface text-foreground"
+					: "border-l-transparent text-muted hover:bg-surface-secondary/50 hover:text-foreground"
+			}`}
+			onClick={() => {
+				if (isDir) {
+					node.toggle();
+				} else {
+					node.select();
+					node.activate();
+				}
+			}}
+		>
+			{isDir ? (
+				<VscFolderIcon name={node.data.name} isOpen={node.isOpen} />
+			) : (
+				<VscFileIcon name={node.data.name} />
+			)}
+			<span className="truncate">{node.data.name}</span>
+		</div>
+	);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -56,7 +148,6 @@ export default function CodingAgentsPage() {
 		usableAgents[0]?.id ?? "",
 	);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-	const [treeOpen, setTreeOpen] = useState(true);
 	const [isDirty, setIsDirty] = useState(false);
 
 	const { data: files = [] } = useSuspenseQuery(
@@ -71,7 +162,6 @@ export default function CodingAgentsPage() {
 		}),
 	});
 
-	// Reset dirty state on file change
 	const prevFile = useRef(selectedFilePath);
 	useEffect(() => {
 		if (prevFile.current !== selectedFilePath) {
@@ -82,6 +172,14 @@ export default function CodingAgentsPage() {
 
 	const selectedFile = files.find((f) => f.path === selectedFilePath) ?? null;
 	const rootPath = files[0]?.path.split("/").slice(0, -1).join("/") ?? "";
+
+	const treeData = useMemo(
+		() => filesToTreeData(files, rootPath),
+		[files, rootPath],
+	);
+
+	// Find the selected directory entry for its linkTo
+	const selectedDirEntry = selectedFile?.type === "directory" ? selectedFile : null;
 
 	return (
 		<div className="flex h-full">
@@ -102,7 +200,6 @@ export default function CodingAgentsPage() {
 						if (!id) return;
 						setSelectedAgentId(id);
 						setSelectedFilePath(null);
-						setTreeOpen(true);
 					}}
 					className="p-2"
 				>
@@ -118,82 +215,47 @@ export default function CodingAgentsPage() {
 					))}
 				</ListBox>
 
-				{/* File tree */}
-				<div className="flex min-h-0 flex-1 flex-col border-t border-border">
-					{/* Root — clickable to collapse/expand */}
-					<button
-						type="button"
-						onClick={() => setTreeOpen(!treeOpen)}
-						className="flex items-center gap-1.5 px-3 py-2 text-xs hover:bg-surface-secondary/50"
+				{/* File tree (react-arborist) */}
+				<div className="flex min-h-0 flex-1 flex-col border-t border-border overflow-hidden">
+					<Tree
+						data={treeData}
+						openByDefault
+						width="100%"
+						rowHeight={28}
+						indent={16}
+						padding={8}
+						disableDrag
+						disableDrop
+						disableEdit
+						onActivate={(node) => {
+							if (node.data.fileType !== "directory") {
+								setSelectedFilePath(node.data.filePath);
+							}
+						}}
 					>
-						<ChevronRightIcon className={cn("size-3 text-muted transition-transform", treeOpen && "rotate-90")} />
-						<span className="font-mono font-medium text-accent">{rootPath}</span>
-					</button>
-
-					{/* File entries */}
-					{treeOpen && (
-						<div className="flex-1 overflow-y-auto">
-							{/* Directories first */}
-							{files.filter((f) => f.type === "directory").map((dir) => {
-								const isSelected = dir.path === selectedFilePath;
-								return (
-									<button
-										key={dir.path}
-										onClick={() => setSelectedFilePath(dir.path)}
-										className={cn(
-											"flex w-full items-center gap-2 border-l-2 py-1 pl-7 pr-3 text-left text-[13px] transition-colors",
-											isSelected
-												? "border-l-accent bg-surface text-foreground"
-												: "border-l-transparent text-muted hover:bg-surface-secondary/50 hover:text-foreground",
-										)}
-									>
-										<VscFolderIcon name={dir.name} />
-										<span className="truncate">{dir.name}</span>
-									</button>
-								);
-							})}
-							{/* Then files */}
-							{files.filter((f) => f.type !== "directory").map((file) => {
-								const isSelected = file.path === selectedFilePath;
-								return (
-									<button
-										key={file.path}
-										onClick={() => setSelectedFilePath(file.path)}
-										className={cn(
-											"flex w-full items-center gap-2 border-l-2 py-1 pl-7 pr-3 text-left text-[13px] transition-colors",
-											isSelected
-												? "border-l-accent bg-surface text-foreground"
-												: "border-l-transparent text-muted hover:bg-surface-secondary/50 hover:text-foreground",
-										)}
-									>
-										<VscFileIcon name={file.name} />
-										<span className="truncate">{file.name}</span>
-									</button>
-								);
-							})}
-						</div>
-					)}
+						{FileTreeNode}
+					</Tree>
 				</div>
 			</div>
 
 			{/* Right: Editor or directory preview */}
 			<div className="flex flex-1 flex-col overflow-hidden">
-				{selectedFile?.type === "directory" ? (
+				{selectedDirEntry ? (
 					<div className="flex h-full flex-col p-4">
 						<Card className="flex h-full flex-col">
 							<Card.Header className="flex flex-row items-center justify-between">
 								<div className="flex min-w-0 items-center gap-2">
-									<VscFolderIcon name={selectedFile.name} />
-									<Card.Title className="truncate text-sm font-medium">{selectedFile.name}</Card.Title>
+									<VscFolderIcon name={selectedDirEntry.name} isOpen />
+									<Card.Title className="truncate text-sm font-medium">{selectedDirEntry.name}</Card.Title>
 									<span className="shrink-0 text-xs text-muted">{rootPath}</span>
 								</div>
-								{selectedFile.linkTo && (
-									<Button variant="ghost" size="sm" onPress={() => setLocation(selectedFile.linkTo!)}>
+								{selectedDirEntry.linkTo && (
+									<Button variant="ghost" size="sm" onPress={() => setLocation(selectedDirEntry.linkTo!)}>
 										<ArrowTopRightOnSquareIcon className="size-3.5" />
-										{selectedFile.linkTo === "/skills" ? t("skills")
-											: selectedFile.linkTo === "/plugins" ? t("plugins")
-											: selectedFile.linkTo === "/mcp" ? t("mcpServers")
-											: selectedFile.linkTo === "/sub-agents" ? t("subAgents")
+										{selectedDirEntry.linkTo === "/skills" ? t("skills")
+											: selectedDirEntry.linkTo === "/plugins" ? t("plugins")
+											: selectedDirEntry.linkTo === "/mcp" ? t("mcpServers")
+											: selectedDirEntry.linkTo === "/sub-agents" ? t("subAgents")
 											: t("inferenceProviders")}
 									</Button>
 								)}
@@ -201,7 +263,7 @@ export default function CodingAgentsPage() {
 							<Card.Content className="flex-1 overflow-y-auto">
 								{(() => {
 									let children: string[] = [];
-									try { children = JSON.parse(selectedFile.content); } catch { /* empty */ }
+									try { children = JSON.parse(selectedDirEntry.content); } catch { /* empty */ }
 									return children.length > 0 ? (
 										<div className="space-y-px">
 											{children.map((child) => (
