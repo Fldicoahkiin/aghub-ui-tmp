@@ -121,7 +121,7 @@ export interface UpdateAgentProviderRequest {
 export interface AgentConfigFile {
 	path: string;
 	name: string;
-	type: "json" | "markdown";
+	type: "json" | "toml" | "markdown";
 	content: string;
 }
 
@@ -437,16 +437,30 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 						language: "中文",
 						autoUpdatesChannel: "stable",
 						permissions: {
-							allow: ["Bash(gh pr:*)", "Bash(git add:*)"],
+							allow: ["mcp__pencil", "Bash(gh pr:*)", "Bash(git add:*)"],
 							defaultMode: "plan",
 						},
 						hooks: {
-							PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "notify-bridge" }] }],
+							Notification: [{ matcher: "*", hooks: [{ type: "command", command: "notify-bridge --source claude" }] }],
+							PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "notify-bridge --source claude" }] }],
+							PostToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "notify-bridge --source claude" }] }],
+							SessionStart: [{ hooks: [{ type: "command", command: "notify-bridge --source claude" }] }],
+							SessionEnd: [{ hooks: [{ type: "command", command: "notify-bridge --source claude" }] }],
 						},
 						enabledPlugins: {
 							"context7@claude-plugins-official": true,
 							"pr-review-toolkit@claude-plugins-official": true,
 							"typescript-lsp@claude-plugins-official": true,
+							"rust-analyzer-lsp@claude-plugins-official": true,
+							"commit-commands@claude-plugins-official": true,
+							"claude-md-management@claude-plugins-official": true,
+							"skill-creator@claude-plugins-official": true,
+							"frontend-design@claude-plugins-official": true,
+							"sentry@claude-plugins-official": true,
+							"figma@claude-plugins-official": true,
+						},
+						env: {
+							CLAUDE_CODE_DISABLE_TERMINAL_TITLE: "1",
 						},
 					},
 					null,
@@ -464,6 +478,7 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 								"Bash(zsh -c 'which node; node --version')",
 								"Bash(ls:*)",
 								"WebFetch(domain:github.com)",
+								"Bash(brew search:*)",
 							],
 						},
 					},
@@ -475,20 +490,69 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 				path: "~/.claude/config.json",
 				name: "config.json",
 				type: "json",
-				content: JSON.stringify(
-					{
-						primaryApiKey: "any",
-					},
-					null,
-					2,
-				),
+				content: JSON.stringify({ primaryApiKey: "any" }, null, 2),
 			},
 			{
 				path: "~/.claude/CLAUDE.md",
 				name: "CLAUDE.md",
 				type: "markdown",
-				content:
-					"# Global Rules\n\n## Language\n\n- Respond in Chinese throughout.\n- Keep proper nouns in English: API, CLI, JSON, shell, prompt, tool, etc.\n\n## Safety\n\n- Never use `rm` in any form.\n- Never read credential dirs: `~/.ssh/`, `~/.aws/`, `~/.gnupg/`.\n\n## Code Consistency\n\n- No simplification of features without explicit approval.\n- Modify in-place. Never create renamed \"new version\" files.\n- Domain-first naming. Preserve the project's established vocabulary.\n",
+				content: `# Global Rules
+
+## Instruction Precedence
+
+- Repository-local instructions override this file: \`AGENTS.md\`, \`CLAUDE.md\`, \`justfile\`, \`Cargo.toml\`, \`package.json\`, formatter/linter configs.
+- When prose documentation conflicts with code or build scripts, trust the executable. Briefly note the mismatch.
+
+## Language
+
+- Respond in Chinese throughout.
+- Keep proper nouns in English: API, CLI, JSON, shell, prompt, tool, etc.
+- Engineer tone: direct, calm, precise. No hype, no self-congratulation.
+
+## Safety
+
+- Never use \`rm\` in any form.
+- Never read credential dirs: \`~/.ssh/\`, \`~/.aws/\`, \`~/.gnupg/\`, etc.
+- For deletion, use \`trash\` or confirm before any destructive action.
+
+## Code Consistency
+
+- No simplification of features, data shape, or architecture intent without explicit approval.
+- Modify in-place. Never create renamed "new version" files or symbols.
+- Banned suffixes/prefixes: \`_enhanced\`, \`_improved\`, \`_v2\`, \`_fixed\`, \`_new\`, \`_better\`, \`_optimized\`, \`_refactored\`.
+- Domain-first naming. Preserve the project's established vocabulary.
+- No prompt artifacts in identifiers, comments, commit messages, or replies.
+
+## Architecture
+
+- In registry-, descriptor-, or capability-driven codebases, extend existing tables and wiring points. Don't scatter special cases.
+- For user-owned config files (JSON, TOML, YAML): minimal, non-destructive edits. Preserve unknown fields, ordering, comments, and unrelated sections.
+- No silent fallbacks across tool or provider boundaries. Prefer explicit errors or logs.
+- Network and process calls must have timeouts.
+
+## Validation
+
+Post-change order:
+1. Check if the repo defines a \`justfile\` — if yes, use \`just fmt\` and \`just lint\`.
+2. Otherwise use language defaults:
+   - Rust: \`cargo fmt\` + \`cargo clippy\`
+   - Frontend: the repo's package manager lint, typecheck, build scripts
+3. Verify in browser after frontend changes. Build passing is not enough.
+
+## Frontend
+
+- Default package manager: \`pnpm\`.
+- No emoji as icons — use an icon library (e.g. lucide-react).
+- One component, one responsibility. Split when > 300 lines or > 5 \`useState\`.
+- State at the smallest scope that needs it.
+- No \`any\` or \`as any\`. Explicit casts require a concrete reason.
+
+## Git
+
+- Conventional Commits format.
+- Breaking changes: \`!\` after type, e.g. \`refactor!: remove legacy module\`.
+- Never push unless explicitly asked.
+`,
 			},
 		],
 	},
@@ -497,18 +561,25 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 		rootPath: "~/.config/opencode",
 		files: [
 			{
-				path: "~/.config/opencode/settings.json",
-				name: "settings.json",
+				path: "~/.config/opencode/opencode.json",
+				name: "opencode.json",
 				type: "json",
 				content: JSON.stringify(
 					{
-						apiKey: "sk-•••••••••••••••••••••••••••••••••••••••••••",
-						baseUrl: "https://api.openai.com/v1",
-						model: "gpt-4.1",
-						maxTokens: 4096,
-						permissions: {
-							allow: ["Read", "Write"],
-							deny: ["Bash"],
+						$schema: "https://opencode.ai/config.json",
+						model: "opencode/glm-4.7-free",
+						plugin: ["opencode-antigravity-auth@1.6.0", "oh-my-opencode@latest"],
+						provider: {
+							anthropic: {
+								models: {
+									"claude-sonnet-4-5": { name: "claude-sonnet-4-5" },
+									"claude-opus-4-5-thinking": { name: "claude-opus-4-5-thinking" },
+								},
+							},
+						},
+						mcp: {
+							chrome: { type: "local", command: ["chrome-mcp"], enabled: true },
+							pencil: { type: "local", command: ["pencil-mcp-server", "--app", "desktop"], enabled: true },
 						},
 					},
 					null,
@@ -516,36 +587,54 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 				),
 			},
 			{
-				path: "~/.config/opencode/USER.md",
-				name: "USER.md",
+				path: "~/.config/opencode/global-rules.md",
+				name: "global-rules.md",
 				type: "markdown",
-				content:
-					"# USER.md\n\nGlobal user preferences for OpenCode.\n\n- Language: Chinese\n- Code style: Airbnb\n",
-			},
-		],
-	},
-	cursor: {
-		agentId: "cursor",
-		rootPath: "~/.cursor",
-		files: [
-			{
-				path: "~/.cursor/settings.json",
-				name: "settings.json",
-				type: "json",
-				content: JSON.stringify(
-					{
-						apiKey: "sk-•••••••••••••••••••••••••••••••••••••••••••",
-						baseUrl: "https://api.openai.com/v1",
-						model: "gpt-4o",
-						maxTokens: 4096,
-						permissions: {
-							allow: ["Read", "Write", "Edit"],
-							deny: [],
-						},
-					},
-					null,
-					2,
-				),
+				content: `# OpenCode 全局规范
+
+## 1. 环境配置
+
+- **系统**: macOS
+- **终端**: Kitty
+- **Shell**: Fish
+- **语言**: 中文（回复和思考过程）
+
+## 2. 代码注释规范
+
+- 统一使用 \`//\` 风格注释，禁用 \`///\`
+- 注释语言：英文为主，中文仅用于说明业务逻辑
+
+## 3. Git Commit 规范
+
+### 格式
+
+\`\`\`
+<type>: <简短描述>
+
+<详细说明>
+- 变更点1
+- 变更点2
+\`\`\`
+
+### Type 类型
+
+- \`feat\`: 新功能 | \`fix\`: 修复 | \`refactor\`: 重构 | \`perf\`: 性能
+- \`style\`: 格式 | \`docs\`: 文档 | \`test\`: 测试 | \`chore\`: 构建
+
+## 4. 代码风格
+
+- 缩进：Tab
+- 引号：双引号
+- 分号：必须
+- 行宽：100 字符
+- 文件编码：UTF-8
+
+## 5. 安全规范
+
+- 不直接操作 \`rm\` 命令
+- 不读取凭证目录（\`~/.ssh\`, \`~/.aws\`）
+- 敏感信息使用环境变量或 secret manager
+`,
 			},
 		],
 	},
@@ -554,26 +643,89 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 		rootPath: "~/.codex",
 		files: [
 			{
-				path: "~/.codex/config.json",
-				name: "config.json",
+				path: "~/.codex/config.toml",
+				name: "config.toml",
+				type: "toml",
+				content: `disable_response_storage = true
+personality = "pragmatic"
+model = "gpt-5.4"
+model_reasoning_effort = "xhigh"
+
+notify = ["codex-computer-use-client", "turn-ended"]
+
+[mcp_servers.playwright]
+command = "npx"
+args = ["@playwright/mcp@latest"]
+
+[mcp_servers.playwright.tools.browser_navigate]
+approval_mode = "approve"
+
+[mcp_servers.playwright.tools.browser_click]
+approval_mode = "approve"
+
+[mcp_servers.playwright.tools.browser_tabs]
+approval_mode = "approve"
+`,
+			},
+			{
+				path: "~/.codex/hooks.json",
+				name: "hooks.json",
 				type: "json",
 				content: JSON.stringify(
 					{
-						model: "codex-mini",
-						apiKey: "sk-codex-••••••••••••••••••••••••••••••••",
-						baseUrl: "https://api.openai.com/v1",
-						approval_mode: "suggest",
-						sandbox: { type: "docker", image: "node:20" },
+						hooks: {
+							SessionStart: [{ hooks: [{ type: "command", command: "notify-bridge --source codex", timeout: 5 }] }],
+							Stop: [{ hooks: [{ type: "command", command: "notify-bridge --source codex", timeout: 5 }] }],
+							UserPromptSubmit: [{ hooks: [{ type: "command", command: "notify-bridge --source codex", timeout: 5 }] }],
+							PermissionRequest: [{ hooks: [{ type: "command", command: "notify-bridge --source codex", timeout: 7200 }] }],
+						},
 					},
 					null,
 					2,
 				),
 			},
 			{
-				path: "~/.codex/instructions.md",
-				name: "instructions.md",
+				path: "~/.codex/AGENTS.md",
+				name: "AGENTS.md",
 				type: "markdown",
-				content: "# Codex Instructions\n\nDefault instructions for Codex CLI.\n\n## Guidelines\n\n- Always run tests before applying changes\n- Prefer minimal diffs\n- Use sandbox mode for destructive operations\n",
+				content: `# Codex Agent 全局规范
+
+## Instruction Precedence
+
+- Repository-local instructions override this file.
+- When prose documentation conflicts with code or build scripts, trust the executable.
+
+## Language
+
+- Respond in Chinese throughout.
+- Keep proper nouns in English: API, CLI, JSON, shell, prompt, tool, etc.
+- Engineer tone: direct, calm, precise.
+
+## Safety
+
+- Never use \`rm\` in any form.
+- Never read credential dirs: \`~/.ssh/\`, \`~/.aws/\`, \`~/.gnupg/\`.
+- For deletion, use \`trash\` or confirm before any destructive action.
+
+## Code Consistency
+
+- No simplification of features without explicit approval.
+- Modify in-place. Never create renamed "new version" files.
+- Domain-first naming. Preserve established vocabulary.
+- No speculative abstractions.
+
+## Architecture
+
+- For user-owned config files: minimal, non-destructive edits.
+- No silent fallbacks across tool or provider boundaries.
+- Network and process calls must have timeouts.
+
+## Validation
+
+1. Check for \`justfile\` → use \`just fmt\` and \`just lint\`.
+2. Otherwise: \`cargo fmt\` + \`cargo clippy\` for Rust, \`pnpm lint\` for frontend.
+3. Verify in browser after frontend changes.
+`,
 			},
 		],
 	},
@@ -582,19 +734,40 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 		rootPath: "~/.openclaw",
 		files: [
 			{
-				path: "~/.openclaw/settings.json",
-				name: "settings.json",
+				path: "~/.openclaw/openclaw.json",
+				name: "openclaw.json",
 				type: "json",
 				content: JSON.stringify(
 					{
-						apiKey: "sk-oc-••••••••••••••••••••••••••••••••••••",
-						baseUrl: "https://openrouter.ai/api/v1",
-						model: "anthropic/claude-sonnet-4-5",
-						maxTokens: 4096,
-						streaming: true,
-						permissions: {
-							allow: ["Read", "Write", "Edit", "Bash"],
-							deny: [],
+						meta: { lastTouchedVersion: "2026.3.2" },
+						models: {
+							providers: {
+								openrouter: {
+									baseUrl: "https://openrouter.ai/api/v1",
+									apiKey: "sk-or-••••••••••••••••••••••••••••••••",
+									api: "openai-completions",
+									models: [
+										{ id: "anthropic/claude-sonnet-4-5", name: "Claude Sonnet 4.5", reasoning: true },
+										{ id: "deepseek/deepseek-r1", name: "DeepSeek R1", reasoning: true },
+									],
+								},
+							},
+						},
+					},
+					null,
+					2,
+				),
+			},
+			{
+				path: "~/.openclaw/exec-approvals.json",
+				name: "exec-approvals.json",
+				type: "json",
+				content: JSON.stringify(
+					{
+						version: 1,
+						defaults: {},
+						agents: {
+							main: { autoAllowSkills: true },
 						},
 					},
 					null,
@@ -605,8 +778,46 @@ const MOCK_AGENT_WORKSPACES: Record<string, AgentWorkspace> = {
 				path: "~/.openclaw/AGENTS.md",
 				name: "AGENTS.md",
 				type: "markdown",
-				content:
-					"# AGENTS.md\n\nOpenClaw agent configuration.\n\n## Setup\n\n1. Set your API key in `settings.json`\n2. Choose a model from your inference provider\n3. Configure max tokens and streaming\n\n## Permissions\n\n- `Read` — read files in the workspace\n- `Write` — create new files\n- `Edit` — modify existing files\n- `Bash` — execute shell commands\n",
+				content: `# OpenClaw Agent 配置
+
+## 概述
+
+OpenClaw 是一个自主 AI 编程代理，支持多模型切换和插件系统。通过 \`openclaw.json\` 配置 Provider 和模型，通过 \`exec-approvals.json\` 管理执行权限。
+
+## Provider 配置
+
+在 \`openclaw.json\` 的 \`models.providers\` 下添加 Provider：
+
+\`\`\`json
+{
+  "openrouter": {
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKey": "sk-or-...",
+    "api": "openai-completions",
+    "models": [
+      { "id": "anthropic/claude-sonnet-4-5", "name": "Claude Sonnet 4.5" }
+    ]
+  }
+}
+\`\`\`
+
+## 权限管理
+
+\`exec-approvals.json\` 控制 Agent 的执行权限：
+
+- \`autoAllowSkills\`: 是否自动批准 Skill 执行
+- 可以为每个 Agent 单独配置权限策略
+
+## Memory 系统
+
+Agent 的记忆存储在 \`~/.openclaw/memory/\` 目录下，按 Agent ID 分类。支持持久化上下文和跨 Session 的知识积累。
+
+## 安全规范
+
+- 敏感 API Key 存储在 \`openclaw.json\` 中，文件权限应设为 600
+- 不直接访问 \`~/.ssh\`, \`~/.aws\` 等凭证目录
+- 所有外部 API 调用需设置 timeout
+`,
 			},
 		],
 	},

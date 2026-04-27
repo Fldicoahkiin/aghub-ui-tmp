@@ -10,6 +10,7 @@ import { useLocation } from "wouter";
 import { getIconForFile } from "vscode-icons-ts";
 import { JsonEditor } from "../../components/json-editor";
 import { MarkdownEditor } from "../../components/markdown-editor";
+import { TomlEditor } from "../../components/toml-editor";
 import { useAgentAvailability } from "../../hooks/use-agent-availability";
 import { useApi } from "../../hooks/use-api";
 import { AgentIcon } from "../../lib/agent-icons";
@@ -199,6 +200,8 @@ export default function CodingAgentsPage() {
 								<div className="min-h-0 flex-1">
 									{selectedFile.type === "json" ? (
 										<JsonEditor content={fileContent} />
+									) : selectedFile.type === "toml" ? (
+										<TomlEditor content={fileContent} />
 									) : (
 										<MarkdownEditor content={fileContent} />
 									)}
