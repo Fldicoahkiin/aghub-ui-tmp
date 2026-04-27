@@ -23,7 +23,7 @@ import {
 /*  VSCode file icon component                                         */
 /* ------------------------------------------------------------------ */
 
-const ICON_BASE = "https://cdn.jsdelivr.net/gh/nicolo-ribaudo/vscode-icons-ts@HEAD/icons/";
+const ICON_BASE = "https://cdn.jsdelivr.net/npm/vscode-icons-ts@0.1.2/build/icons/";
 
 function VscFileIcon({ name }: { name: string }) {
 	const icon = getIconForFile(name);
