@@ -1,5 +1,6 @@
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
 import { Button } from "@heroui/react";
+import Editor from "@monaco-editor/react";
 import { useState } from "react";
 
 function flattenJson(
@@ -39,7 +40,6 @@ export function JsonEditor({ content }: { content: string }) {
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Mode toggle */}
 			<div className="mb-3 flex gap-1">
 				<Button
 					size="sm"
@@ -58,12 +58,26 @@ export function JsonEditor({ content }: { content: string }) {
 			</div>
 
 			{mode === "raw" || !parsed ? (
-				<textarea
-					value={rawContent}
-					onChange={(e) => setRawContent(e.target.value)}
-					className="h-full w-full resize-none rounded-md border border-border bg-surface p-3 font-mono text-sm leading-6 text-foreground outline-none focus:border-primary"
-					spellCheck={false}
-				/>
+				<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+					<Editor
+						height="100%"
+						defaultLanguage="json"
+						value={rawContent}
+						onChange={(value) => setRawContent(value ?? "")}
+						theme="vs-dark"
+						options={{
+							minimap: { enabled: false },
+							fontSize: 13,
+							lineNumbers: "on",
+							scrollBeyondLastLine: false,
+							wordWrap: "on",
+							tabSize: 2,
+							formatOnPaste: true,
+							automaticLayout: true,
+							padding: { top: 12 },
+						}}
+					/>
+				</div>
 			) : (
 				<div className="space-y-0.5">
 					{flattenJson(parsed).map(({ key, value }) => {
