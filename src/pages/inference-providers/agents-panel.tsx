@@ -43,6 +43,7 @@ const CODING_AGENTS: { id: CodingAgentId; label: string }[] = [
 	{ id: "opencode", label: "OpenCode" },
 	{ id: "codex", label: "Codex" },
 	{ id: "openclaw", label: "OpenClaw" },
+	{ id: "claude", label: "Claude Code" },
 ];
 
 /* ------------------------------------------------------------------ */

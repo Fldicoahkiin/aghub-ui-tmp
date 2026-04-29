@@ -80,6 +80,7 @@ const CODING_AGENT_OPTIONS: CodingAgentOption[] = [
 	{ id: "opencode", label: "OpenCode" },
 	{ id: "codex", label: "Codex" },
 	{ id: "openclaw", label: "OpenClaw" },
+	{ id: "claude", label: "Claude Code" },
 ];
 
 /* ------------------------------------------------------------------ */

@@ -92,7 +92,7 @@ export interface UpdateInferenceProviderRequest {
 /*  Agent Provider types (per-agent provider bindings)                  */
 /* ------------------------------------------------------------------ */
 
-export type CodingAgentId = "opencode" | "codex" | "openclaw";
+export type CodingAgentId = "opencode" | "codex" | "openclaw" | "claude";
 
 export interface AgentProviderResponse {
 	id: string;
@@ -397,6 +397,28 @@ const MOCK_AGENT_PROVIDER_LIST: Record<string, AgentProviderResponse[]> = {
 			apiBaseUrl: "https://api.together.xyz/v1",
 			hasApiKey: true,
 			models: ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "Qwen/Qwen2.5-Coder-32B-Instruct"],
+			isBuiltIn: false,
+		},
+	],
+	claude: [
+		{
+			id: "claude-official",
+			name: "Anthropic Official",
+			sourceProviderName: null,
+			format: "anthropic",
+			apiBaseUrl: "https://api.anthropic.com",
+			hasApiKey: false,
+			models: ["claude-sonnet-4-5", "claude-opus-4-5"],
+			isBuiltIn: true,
+		},
+		{
+			id: "claude-openrouter",
+			name: "OpenRouter",
+			sourceProviderName: "openrouter",
+			format: "openai_completions",
+			apiBaseUrl: "https://openrouter.ai/api/v1",
+			hasApiKey: true,
+			models: ["anthropic/claude-sonnet-4-5", "anthropic/claude-opus-4-5"],
 			isBuiltIn: false,
 		},
 	],
