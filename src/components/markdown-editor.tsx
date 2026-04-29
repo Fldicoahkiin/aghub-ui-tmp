@@ -84,7 +84,7 @@ function parseMarkdownPieces(content: string): Piece[] {
 
 	for (const line of lines) {
 		if (line.startsWith("## ")) {
-			if (currentBody.join("\n").trim()) {
+			if (currentHeading || currentBody.join("\n").trim()) {
 				const heading = currentHeading;
 				pieces.push({
 					id: `piece-${pieceIndex++}`,
@@ -96,13 +96,13 @@ function parseMarkdownPieces(content: string): Piece[] {
 			currentHeading = line.replace(/^## /, "").trim();
 			currentBody = [];
 		} else if (line.startsWith("# ") && pieces.length === 0 && !currentHeading) {
-			continue;
+			currentHeading = line.replace(/^# /, "").trim();
 		} else {
 			currentBody.push(line);
 		}
 	}
 
-	if (currentBody.join("\n").trim()) {
+	if (currentHeading || currentBody.join("\n").trim()) {
 		pieces.push({
 			id: `piece-${pieceIndex}`,
 			heading: currentHeading,
@@ -192,7 +192,7 @@ function PieceCard({ piece, onRemove }: { piece: Piece; onRemove?: () => void })
 			</div>
 
 			{!collapsed && piece.body && (
-				<div className="border-t border-border px-4 py-3">
+				<div className="px-4 pb-3 pt-1">
 					{renderBody(piece.body, piece.id)}
 				</div>
 			)}
