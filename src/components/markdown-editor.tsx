@@ -24,29 +24,29 @@ function parseMarkdownPieces(content: string): Piece[] {
 
 	for (const line of lines) {
 		if (line.startsWith("## ")) {
-			// Flush previous piece
-			if (currentHeading || currentBody.length > 0) {
+			// Flush previous body into preceding piece (if any content)
+			if (currentBody.join("\n").trim()) {
 				pieces.push({
 					id: `piece-${pieceIndex++}`,
-					heading: currentHeading || "Header",
+					heading: currentHeading,
 					body: currentBody.join("\n").trim(),
 				});
 			}
 			currentHeading = line.replace(/^## /, "").trim();
 			currentBody = [];
-		} else if (pieces.length === 0 && currentHeading === "" && line.startsWith("# ")) {
-			// Top-level title — use as header piece heading
-			currentHeading = line.replace(/^# /, "").trim();
+		} else if (line.startsWith("# ") && pieces.length === 0 && !currentHeading) {
+			// Skip top-level # title — it's just the file title, not a piece
+			continue;
 		} else {
 			currentBody.push(line);
 		}
 	}
 
 	// Flush last piece
-	if (currentHeading || currentBody.length > 0) {
+	if (currentBody.join("\n").trim()) {
 		pieces.push({
 			id: `piece-${pieceIndex}`,
-			heading: currentHeading || "Header",
+			heading: currentHeading,
 			body: currentBody.join("\n").trim(),
 		});
 	}
@@ -113,19 +113,17 @@ function PieceCard({ piece }: { piece: Piece }) {
 
 	return (
 		<div className="rounded-lg border border-border bg-surface">
-			{/* Header */}
 			<button
 				type="button"
 				onClick={() => setCollapsed(!collapsed)}
-				className="flex w-full items-center gap-2 px-4 py-2.5 text-left"
+				className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-surface-secondary/30 transition-colors"
 			>
 				<ChevronRightIcon className={cn("size-3 shrink-0 text-muted transition-transform", !collapsed && "rotate-90")} />
-				<span className="text-xs font-semibold uppercase tracking-wider text-muted">{piece.heading}</span>
+				<span className="text-sm font-medium text-foreground">{piece.heading || "Untitled"}</span>
 			</button>
 
-			{/* Body */}
 			{!collapsed && piece.body && (
-				<div className="border-t border-border px-4 py-3">
+				<div className="px-4 pb-3">
 					{renderBody(piece.body)}
 				</div>
 			)}
