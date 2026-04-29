@@ -9,8 +9,6 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
-import { Tree } from "react-arborist";
-import type { NodeRendererProps } from "react-arborist";
 import { getIconForFile } from "vscode-icons-ts";
 import { JsonEditor } from "../../components/json-editor";
 import { MarkdownEditor } from "../../components/markdown-editor";
@@ -50,154 +48,95 @@ const LINK_LABELS: Record<string, string> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Tree data                                                          */
+/*  Flatten tree data                                                  */
 /* ------------------------------------------------------------------ */
 
-interface TreeNodeData {
+interface FlatNode {
 	id: string;
 	name: string;
-	fileType: AgentConfigFile["type"];
+	depth: number;
+	isDir: boolean;
 	filePath: string;
 	linkTo?: string;
-	children?: TreeNodeData[];
+	hasChildren: boolean;
 }
 
-function filesToTreeData(files: AgentConfigFile[], rootPath: string): TreeNodeData[] {
-	// Separate directories and files
+function flattenFiles(
+	files: AgentConfigFile[],
+	expandedDirs: Set<string>,
+): FlatNode[] {
 	const dirFiles = files.filter((f) => f.type === "directory");
 	const nonDirFiles = files.filter((f) => f.type !== "directory");
+	const result: FlatNode[] = [];
 
-	// Build directory nodes with children from JSON content
-	const dirNodes: TreeNodeData[] = dirFiles.map((dir) => {
-		let childEntries: string[] = [];
-		try { childEntries = JSON.parse(dir.content); } catch { /* empty */ }
+	// Directories first
+	for (const dir of dirFiles) {
+		let children: string[] = [];
+		try { children = JSON.parse(dir.content); } catch { /* empty */ }
 
-		// For each child entry, check if there are actual files under it
-		const children: TreeNodeData[] = childEntries.map((entry) => {
-			const childPath = `${dir.path}${entry}`;
-			const isSubDir = entry.endsWith("/");
+		// Find actual files under this directory
+		const subFiles = nonDirFiles.filter((f) => f.path.startsWith(dir.path));
 
-			if (isSubDir) {
-				// Find files that live under this subdirectory
-				const subFiles = nonDirFiles
-					.filter((f) => f.path.startsWith(childPath))
-					.map((f) => ({
-						id: f.path,
-						name: f.name,
-						fileType: f.type as TreeNodeData["fileType"],
-						filePath: f.path,
-					}));
-
-				return {
-					id: childPath,
-					name: entry,
-					fileType: "directory" as const,
-					filePath: childPath,
-					children: subFiles.length > 0 ? subFiles : undefined,
-				};
-			}
-
-			return {
-				id: childPath,
-				name: entry,
-				fileType: "json" as const,
-				filePath: childPath,
-			};
-		});
-
-		return {
+		const hasChildren = children.length > 0 || subFiles.length > 0;
+		result.push({
 			id: dir.path,
-			name: dir.name,
-			fileType: "directory" as const,
+			name: dir.name.replace(/\/$/, ""),
+			depth: 0,
+			isDir: true,
 			filePath: dir.path,
 			linkTo: dir.linkTo,
-			children,
-		};
-	});
+			hasChildren,
+		});
+
+		if (expandedDirs.has(dir.path)) {
+			for (const child of children) {
+				const childPath = `${dir.path}${child}`;
+				const isSubDir = child.endsWith("/");
+
+				// Check for real files under this subdirectory
+				const childSubFiles = subFiles.filter((f) => f.path.startsWith(childPath));
+
+				result.push({
+					id: childPath,
+					name: child.replace(/\/$/, ""),
+					depth: 1,
+					isDir: isSubDir,
+					filePath: childPath,
+					hasChildren: childSubFiles.length > 0,
+				});
+
+				// If this subdirectory is expanded, show its real files
+				if (isSubDir && expandedDirs.has(childPath)) {
+					for (const sf of childSubFiles) {
+						result.push({
+							id: sf.path,
+							name: sf.name,
+							depth: 2,
+							isDir: false,
+							filePath: sf.path,
+							hasChildren: false,
+						});
+					}
+				}
+			}
+		}
+	}
 
 	// Top-level files (not under any directory)
-	const topLevelFiles: TreeNodeData[] = nonDirFiles
-		.filter((f) => !dirFiles.some((d) => f.path.startsWith(d.path)))
-		.map((f) => ({
-			id: f.path,
-			name: f.name,
-			fileType: f.type as TreeNodeData["fileType"],
-			filePath: f.path,
-		}));
+	for (const file of nonDirFiles) {
+		if (!dirFiles.some((d) => file.path.startsWith(d.path))) {
+			result.push({
+				id: file.path,
+				name: file.name,
+				depth: 0,
+				isDir: false,
+				filePath: file.path,
+				hasChildren: false,
+			});
+		}
+	}
 
-	return [{
-		id: "__root__",
-		name: rootPath,
-		fileType: "directory" as const,
-		filePath: rootPath,
-		children: [...dirNodes, ...topLevelFiles],
-	}];
-}
-
-/* ------------------------------------------------------------------ */
-/*  Tree node renderer                                                 */
-/* ------------------------------------------------------------------ */
-
-function FileTreeNode({ node, style }: NodeRendererProps<TreeNodeData>) {
-	const { t } = useTranslation();
-	const [, setLocation] = useLocation();
-	const isDir = node.data.fileType === "directory";
-	const isRoot = node.data.id === "__root__";
-	const isSelected = node.isSelected && !isDir;
-	const hasLink = !!node.data.linkTo;
-
-	return (
-		<div style={{ ...style, cursor: "default" }} className="px-1">
-			<div
-				className={cn(
-					"group flex items-center gap-1 rounded-md px-1.5 text-[13px] leading-7 transition-colors",
-					isRoot
-						? "font-mono text-xs font-medium text-accent"
-						: isSelected
-							? "bg-surface text-foreground"
-							: "text-muted hover:bg-surface-secondary/50 hover:text-foreground",
-				)}
-			>
-				{/* Chevron for directories */}
-				{isDir && !isRoot ? (
-					<button
-						type="button"
-						onClick={(e) => { e.stopPropagation(); node.toggle(); }}
-						className="flex size-4 shrink-0 items-center justify-center"
-					>
-						<ChevronRightIcon className={cn("size-3 text-muted transition-transform", node.isOpen && "rotate-90")} />
-					</button>
-				) : !isDir ? (
-					<span className="size-4 shrink-0" />
-				) : null}
-
-				{/* Name (+ file icon for non-dirs) — click to toggle dir or select file */}
-				<div
-					className="flex min-w-0 flex-1 items-center gap-1.5"
-					onClick={() => {
-						if (isRoot) return;
-						if (isDir) node.toggle();
-						else { node.select(); node.activate(); }
-					}}
-				>
-					{!isDir && <VscFileIcon name={node.data.name} />}
-					<span className="truncate">{isDir ? node.data.name.replace(/\/$/, "") : node.data.name}</span>
-				</div>
-
-				{/* Jump link for linked directories */}
-				{hasLink && !isRoot && (
-					<button
-						type="button"
-						onClick={(e) => { e.stopPropagation(); setLocation(node.data.linkTo!); }}
-						className="hidden shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-accent/60 transition-colors hover:bg-accent/10 hover:text-accent group-hover:inline-flex"
-						title={t(LINK_LABELS[node.data.linkTo!] ?? "inferenceProviders")}
-					>
-						<ArrowTopRightOnSquareIcon className="size-3" />
-					</button>
-				)}
-			</div>
-		</div>
-	);
+	return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -215,6 +154,7 @@ export default function CodingAgentsPage() {
 		usableAgents[0]?.id ?? "",
 	);
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+	const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
 	const [isDirty, setIsDirty] = useState(false);
 
 	const { data: files = [] } = useSuspenseQuery(
@@ -240,12 +180,22 @@ export default function CodingAgentsPage() {
 	const selectedFile = files.find((f) => f.path === selectedFilePath) ?? null;
 	const rootPath = files[0]?.path.split("/").slice(0, -1).join("/") ?? "";
 
-	const treeData = useMemo(
-		() => filesToTreeData(files, rootPath),
-		[files, rootPath],
+	const flatNodes = useMemo(
+		() => flattenFiles(files, expandedDirs),
+		[files, expandedDirs],
 	);
 
-	const selectedDirEntry = selectedFile?.type === "directory" ? selectedFile : null;
+	const toggleDir = (id: string) => {
+		setExpandedDirs((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	};
+
+	// Find selected directory entry for right panel
+	const selectedDirFile = selectedFile?.type === "directory" ? selectedFile : null;
 
 	return (
 		<div className="flex h-full">
@@ -265,6 +215,7 @@ export default function CodingAgentsPage() {
 						if (!id) return;
 						setSelectedAgentId(id);
 						setSelectedFilePath(null);
+						setExpandedDirs(new Set());
 					}}
 					className="p-2"
 				>
@@ -280,57 +231,83 @@ export default function CodingAgentsPage() {
 					))}
 				</ListBox>
 
-				{/* File tree */}
-				<div className="flex min-h-0 flex-1 flex-col border-t border-border overflow-hidden">
-					<Tree
-						data={treeData}
-						openByDefault
-						width="100%"
-						rowHeight={28}
-						indent={16}
-						padding={8}
-						disableDrag
-						disableDrop
-						disableEdit
-						onActivate={(node) => {
-							if (node.data.fileType !== "directory") {
-								setSelectedFilePath(node.data.filePath);
-							}
-						}}
-					>
-						{FileTreeNode}
-					</Tree>
+				{/* File tree — hand-written flat list, aligned with aghub patterns */}
+				<div className="flex min-h-0 flex-1 flex-col border-t border-border overflow-y-auto">
+					{/* Root path header */}
+					<div className="flex items-center gap-1.5 px-3 py-2 text-xs font-mono font-medium text-accent">
+						{rootPath}
+					</div>
+
+					{/* Tree nodes */}
+					{flatNodes.map((node) => {
+						const isSelected = !node.isDir && node.filePath === selectedFilePath;
+						const isExpanded = expandedDirs.has(node.id);
+
+						return (
+							<button
+								key={node.id}
+								type="button"
+								onClick={() => {
+									if (node.isDir) {
+										if (node.hasChildren) toggleDir(node.id);
+										setSelectedFilePath(node.filePath);
+									} else {
+										setSelectedFilePath(node.filePath);
+									}
+								}}
+								className={cn(
+									"flex w-full items-center gap-1 py-1 pr-3 text-left text-[13px] transition-colors",
+									isSelected
+										? "bg-surface text-foreground"
+										: "text-muted hover:bg-surface-secondary/50 hover:text-foreground",
+								)}
+								style={{ paddingLeft: `${node.depth * 16 + 12}px` }}
+							>
+								{/* Chevron or spacer */}
+								{node.isDir && node.hasChildren ? (
+									<ChevronRightIcon className={cn("size-3 shrink-0 transition-transform", isExpanded && "rotate-90")} />
+								) : (
+									<span className="size-3 shrink-0" />
+								)}
+
+								{/* File icon (only for non-dirs) */}
+								{!node.isDir && <VscFileIcon name={node.name} />}
+
+								<span className="truncate">{node.name}</span>
+							</button>
+						);
+					})}
 				</div>
 			</div>
 
 			{/* Right: Editor or directory preview */}
 			<div className="flex flex-1 flex-col overflow-hidden">
-				{selectedDirEntry ? (
+				{selectedDirFile ? (
 					<div className="flex h-full flex-col p-4">
 						<Card className="flex h-full flex-col">
 							<Card.Header className="flex flex-row items-center justify-between">
 								<div className="flex min-w-0 items-center gap-2">
 									<FolderOpenIcon className="size-4 shrink-0 text-muted" />
-									<Card.Title className="truncate text-sm font-medium">{selectedDirEntry.name}</Card.Title>
+									<Card.Title className="truncate text-sm font-medium">{selectedDirFile.name.replace(/\/$/, "")}</Card.Title>
 									<span className="shrink-0 text-xs text-muted">{rootPath}</span>
 								</div>
-								{selectedDirEntry.linkTo && (
-									<Button variant="ghost" size="sm" onPress={() => setLocation(selectedDirEntry.linkTo!)}>
+								{selectedDirFile.linkTo && (
+									<Button variant="ghost" size="sm" onPress={() => setLocation(selectedDirFile.linkTo!)}>
 										<ArrowTopRightOnSquareIcon className="size-3.5" />
-										{t(LINK_LABELS[selectedDirEntry.linkTo] ?? "inferenceProviders")}
+										{t(LINK_LABELS[selectedDirFile.linkTo] ?? "inferenceProviders")}
 									</Button>
 								)}
 							</Card.Header>
 							<Card.Content className="flex-1 overflow-y-auto">
 								{(() => {
 									let children: string[] = [];
-									try { children = JSON.parse(selectedDirEntry.content); } catch { /* empty */ }
+									try { children = JSON.parse(selectedDirFile.content); } catch { /* empty */ }
 									return children.length > 0 ? (
 										<div className="space-y-px">
 											{children.map((child) => (
 												<div key={child} className="flex items-center gap-2 rounded-sm px-3 py-1.5 text-[13px] text-muted">
 													{child.endsWith("/") ? <FolderIcon className="size-4 shrink-0 text-muted" /> : <VscFileIcon name={child} />}
-													<span className="truncate">{child}</span>
+													<span className="truncate">{child.replace(/\/$/, "")}</span>
 												</div>
 											))}
 										</div>
