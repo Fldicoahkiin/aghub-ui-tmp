@@ -12,7 +12,7 @@ export function TomlEditor({ content }: { content: string }) {
 	}, [monaco]);
 
 	return (
-		<div className="h-full overflow-hidden rounded-md border border-border">
+		<div className="h-full overflow-hidden rounded-md border border-border bg-surface">
 			<Editor
 				height="100%"
 				defaultLanguage="ini"

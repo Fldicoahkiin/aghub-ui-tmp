@@ -1,5 +1,5 @@
-import Editor, { useMonaco } from "@monaco-editor/react";
-import { useEffect, useRef, useState } from "react";
+import Editor, { useMonaco, type BeforeMount } from "@monaco-editor/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { editor } from "monaco-editor";
 import { BASE_MONACO_OPTIONS } from "./monaco-options";
 import { AGHUB_DARK_THEME } from "./monaco-theme";
@@ -16,6 +16,11 @@ export function MarkdownEditor({
 	const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 	const monaco = useMonaco();
 
+	const handleBeforeMount: BeforeMount = useCallback((m) => {
+		m.editor.defineTheme("aghub-dark", AGHUB_DARK_THEME);
+	}, []);
+
+	// Also define on hot reload
 	useEffect(() => {
 		if (monaco) monaco.editor.defineTheme("aghub-dark", AGHUB_DARK_THEME);
 	}, [monaco]);
@@ -48,14 +53,16 @@ export function MarkdownEditor({
 	}, [editing, monaco]);
 
 	return (
-		<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+		<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-surface">
 			<Editor
 				height="100%"
 				defaultLanguage="markdown"
 				value={draft}
 				onChange={(v) => setDraft(v ?? "")}
+				beforeMount={handleBeforeMount}
 				onMount={handleEditorMount}
 				theme="aghub-dark"
+				loading={<div className="h-full bg-surface" />}
 				options={{
 					...BASE_MONACO_OPTIONS,
 					readOnly: !editing,

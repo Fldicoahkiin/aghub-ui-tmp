@@ -319,7 +319,7 @@ export function JsonEditor({ content, onNavigateToProvider }: { content: string;
 				<Button size="sm" variant={mode === "raw" ? "secondary" : "ghost"} onPress={() => setMode("raw")}>Raw</Button>
 			</div>
 			{mode === "raw" ? (
-				<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+				<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-surface">
 					<Editor height="100%" defaultLanguage="json" value={currentContent} onChange={(v) => setCurrentContent(v ?? "")} theme="aghub-dark"
 						options={{ ...BASE_MONACO_OPTIONS, formatOnPaste: true }}
 					/>
