@@ -2,6 +2,7 @@ import { Button } from "@heroui/react";
 import Editor, { useMonaco } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import type { editor } from "monaco-editor";
+import { BASE_MONACO_OPTIONS } from "./monaco-options";
 import { AGHUB_DARK_THEME } from "./monaco-theme";
 
 export function MarkdownEditor({ content }: { content: string }) {
@@ -57,19 +58,8 @@ export function MarkdownEditor({ content }: { content: string }) {
 					onMount={handleEditorMount}
 					theme="aghub-dark"
 					options={{
+						...BASE_MONACO_OPTIONS,
 						readOnly: !editing,
-						minimap: { enabled: false },
-						fontSize: 13,
-						lineNumbers: editing ? "on" : "off",
-						scrollBeyondLastLine: false,
-						wordWrap: "on",
-						tabSize: 2,
-						automaticLayout: true,
-						padding: { top: 8, bottom: 8 },
-						lineDecorationsWidth: 0,
-						lineNumbersMinChars: editing ? 3 : 0,
-						glyphMargin: false,
-						folding: false,
 						renderLineHighlight: editing ? "line" : "none",
 					}}
 				/>

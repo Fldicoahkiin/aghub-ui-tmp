@@ -9,6 +9,7 @@ import Editor, { useMonaco } from "@monaco-editor/react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
+import { BASE_MONACO_OPTIONS } from "./monaco-options";
 import { AGHUB_DARK_THEME } from "./monaco-theme";
 
 /* ------------------------------------------------------------------ */
@@ -320,7 +321,7 @@ export function JsonEditor({ content, onNavigateToProvider }: { content: string;
 			{mode === "raw" ? (
 				<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
 					<Editor height="100%" defaultLanguage="json" value={currentContent} onChange={(v) => setCurrentContent(v ?? "")} theme="aghub-dark"
-						options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", scrollBeyondLastLine: false, wordWrap: "on", tabSize: 2, formatOnPaste: true, automaticLayout: true, padding: { top: 12 } }}
+						options={{ ...BASE_MONACO_OPTIONS, formatOnPaste: true }}
 					/>
 				</div>
 			) : (
