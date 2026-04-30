@@ -343,7 +343,7 @@ export default function CodingAgentsPage() {
 									) : selectedFile.type === "toml" ? (
 										<TomlEditor content={fileContent} />
 									) : (
-										<MarkdownEditor content={fileContent} />
+										<MarkdownEditor content={fileContent} onDirtyChange={setIsDirty} />
 									)}
 								</div>
 							</Card.Content>
