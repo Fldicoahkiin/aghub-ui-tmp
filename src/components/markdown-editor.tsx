@@ -1,11 +1,13 @@
 import { Button } from "@heroui/react";
 import Editor, { useMonaco } from "@monaco-editor/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { editor } from "monaco-editor";
 import { AGHUB_DARK_THEME } from "./monaco-theme";
 
 export function MarkdownEditor({ content }: { content: string }) {
-	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(content);
+	const [editing, setEditing] = useState(false);
+	const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 	const monaco = useMonaco();
 
 	useEffect(() => {
@@ -19,6 +21,24 @@ export function MarkdownEditor({ content }: { content: string }) {
 
 	const isDirty = draft !== content;
 
+	const handleEditorMount = (ed: editor.IStandaloneCodeEditor) => {
+		editorRef.current = ed;
+		// Click anywhere in readOnly editor → switch to editing
+		ed.onMouseDown(() => {
+			if (ed.getOption(monaco!.editor.EditorOption.readOnly)) {
+				setEditing(true);
+			}
+		});
+	};
+
+	// Update readOnly when editing state changes
+	useEffect(() => {
+		if (editorRef.current && monaco) {
+			editorRef.current.updateOptions({ readOnly: !editing });
+			if (editing) editorRef.current.focus();
+		}
+	}, [editing, monaco]);
+
 	return (
 		<div className="flex h-full flex-col">
 			{isDirty && (
@@ -28,34 +48,32 @@ export function MarkdownEditor({ content }: { content: string }) {
 				</div>
 			)}
 
-			{editing ? (
-				<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
-					<Editor
-						height="100%"
-						defaultLanguage="markdown"
-						value={draft}
-						onChange={(v) => setDraft(v ?? "")}
-						theme="aghub-dark"
-						options={{
-							minimap: { enabled: false },
-							fontSize: 13,
-							lineNumbers: "on",
-							scrollBeyondLastLine: false,
-							wordWrap: "on",
-							tabSize: 2,
-							automaticLayout: true,
-							padding: { top: 12 },
-						}}
-					/>
-				</div>
-			) : (
-				<pre
-					className="min-h-0 flex-1 cursor-text overflow-y-auto rounded-md bg-surface-secondary p-3 font-mono text-xs leading-5 whitespace-pre-wrap text-foreground"
-					onClick={() => setEditing(true)}
-				>
-					{draft}
-				</pre>
-			)}
+			<div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+				<Editor
+					height="100%"
+					defaultLanguage="markdown"
+					value={draft}
+					onChange={(v) => setDraft(v ?? "")}
+					onMount={handleEditorMount}
+					theme="aghub-dark"
+					options={{
+						readOnly: !editing,
+						minimap: { enabled: false },
+						fontSize: 13,
+						lineNumbers: editing ? "on" : "off",
+						scrollBeyondLastLine: false,
+						wordWrap: "on",
+						tabSize: 2,
+						automaticLayout: true,
+						padding: { top: 8, bottom: 8 },
+						lineDecorationsWidth: 0,
+						lineNumbersMinChars: editing ? 3 : 0,
+						glyphMargin: false,
+						folding: false,
+						renderLineHighlight: editing ? "line" : "none",
+					}}
+				/>
+			</div>
 		</div>
 	);
 }
