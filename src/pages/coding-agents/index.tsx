@@ -337,15 +337,13 @@ export default function CodingAgentsPage() {
 								)}
 							</Card.Header>
 							<Card.Content className="flex min-h-0 flex-1 flex-col">
-								<div className="min-h-0 flex-1">
-									{selectedFile.type === "json" ? (
-										<JsonEditor content={fileContent} onNavigateToProvider={() => setLocation("/inference-providers")} />
-									) : selectedFile.type === "toml" ? (
-										<TomlEditor content={fileContent} />
-									) : (
-										<MarkdownEditor content={fileContent} onDirtyChange={setIsDirty} />
-									)}
-								</div>
+								{selectedFile.type === "json" ? (
+									<JsonEditor content={fileContent} onNavigateToProvider={() => setLocation("/inference-providers")} />
+								) : selectedFile.type === "toml" ? (
+									<TomlEditor content={fileContent} />
+								) : (
+									<MarkdownEditor content={fileContent} onDirtyChange={setIsDirty} />
+								)}
 							</Card.Content>
 						</Card>
 					</div>
