@@ -156,6 +156,7 @@ export default function CodingAgentsPage() {
 	const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 	const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
 	const [isDirty, setIsDirty] = useState(false);
+	const [editorResetKey, setEditorResetKey] = useState(0);
 
 	const { data: files = [] } = useSuspenseQuery(
 		workspaceAgentFilesQueryOptions({ api, agentId: selectedAgentId }),
@@ -329,12 +330,10 @@ export default function CodingAgentsPage() {
 									<Card.Title className="truncate text-sm font-medium">{selectedFile.name}</Card.Title>
 									<span className="shrink-0 text-xs text-muted">{rootPath}</span>
 								</div>
-								{isDirty && (
-									<div className="flex shrink-0 gap-2">
-										<Button variant="tertiary" size="sm" onPress={() => setIsDirty(false)}>{t("cancel")}</Button>
-										<Button size="sm" onPress={() => setIsDirty(false)}>{t("save")}</Button>
-									</div>
-								)}
+								<div className={`flex shrink-0 gap-2 transition-opacity ${isDirty ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+									<Button variant="tertiary" size="sm" onPress={() => { setEditorResetKey((k) => k + 1); setIsDirty(false); }}>{t("cancel")}</Button>
+									<Button size="sm" onPress={() => setIsDirty(false)}>{t("save")}</Button>
+								</div>
 							</Card.Header>
 							<Card.Content className="flex min-h-0 flex-1 flex-col">
 								{selectedFile.type === "json" ? (
@@ -342,7 +341,7 @@ export default function CodingAgentsPage() {
 								) : selectedFile.type === "toml" ? (
 									<TomlEditor content={fileContent} />
 								) : (
-									<MarkdownEditor content={fileContent} onDirtyChange={setIsDirty} />
+									<MarkdownEditor key={editorResetKey} content={fileContent} onDirtyChange={setIsDirty} />
 								)}
 							</Card.Content>
 						</Card>
